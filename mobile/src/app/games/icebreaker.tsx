@@ -8,7 +8,7 @@ import { Ban, Flag, HandHeart, Lock, MessageCircle, MessageCircleHeart, Search, 
 import { hoursMinutes, isApiError, msLeft, useIcebreakerSession, useNow } from '@/api/games-extra';
 import { icebreakerApi, qk, useBlock, useIcebreaker, useMe, useStartConversation } from '@/api/hooks';
 import type { IcebreakerSession } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { Confetti } from '@/components/games/Confetti';
 import { openReport } from '@/components/safety/ReportSheet';
 import { Button, Card, Chip, EmptyState, ErrorState, Header, Input, RowSkeleton, Screen, Text, confirm } from '@/components/ui';
@@ -298,7 +298,7 @@ function SessionView({ session: s, now, onReset }: { session: IcebreakerSession;
 
   const partnerCard = (
     <View style={[styles.partner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <Avatar config={partner.avatar} size={56} />
+      <UserPhoto user={partner} size={56} />
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="heading" numberOfLines={1}>
           {partner.display_name}
@@ -331,7 +331,7 @@ function SessionView({ session: s, now, onReset }: { session: IcebreakerSession;
     return (
       <View style={{ gap: space.xl, alignItems: 'stretch' }}>
         <Animated.View entering={reduceMotion ? undefined : FadeIn} style={{ alignItems: 'center', gap: space.md, paddingTop: space.lg }}>
-          <Avatar config={partner.avatar} size={96} />
+          <UserPhoto user={partner} size={96} />
           <Text variant="title" center>
             You're friends now!
           </Text>

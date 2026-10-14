@@ -24,6 +24,8 @@ export type UserSummary = {
   avatar: Partial<AvatarConfig>;
   level: number;
   vibe: Vibe | null;
+  photo_url?: string | null;
+  verified?: boolean;
 };
 
 export type Page<T> = { items: T[]; next_cursor: string | null };
@@ -48,6 +50,7 @@ export type Privacy = {
   show_online_status: 'friends' | 'nobody';
   discoverable: boolean;
   show_interests: boolean;
+  photo_visibility?: 'everyone' | 'friends';
   allow_icebreakers: boolean;
   notification_previews: boolean;
   notification_prefs: Partial<Record<NotificationPref, boolean>>;
@@ -70,6 +73,8 @@ export type Me = {
   privacy: Privacy;
   onboarded: boolean;
   plus_active?: boolean;
+  photo_url?: string | null;
+  verified?: boolean;
   xp: number;
   level: number;
   level_progress: number;
@@ -95,6 +100,7 @@ export type PublicProfile = UserSummary & {
   can_friend_request: boolean;
   can_invite: boolean;
   limited: boolean;
+  photos?: import('./photos-extra').Photo[];
 };
 
 export type Friend = UserSummary & { friendship_level: number; friendship_progress: number; online: boolean | null; since: string };
@@ -305,7 +311,7 @@ export type IcebreakerSession = {
   expires_at: string;
 };
 
-export type ReportTarget = 'user' | 'room' | 'community' | 'message' | 'room_message' | 'community_post';
+export type ReportTarget = 'user' | 'room' | 'community' | 'message' | 'room_message' | 'community_post' | 'photo';
 export type Report = { id: UUID; target_type: ReportTarget; target_id: string; reason: string; status: string; created_at: string };
 
 export type AuditEntry = { id: UUID; actor: UserSummary | null; action: string; target_type: string; target_id: string; reason: string; created_at: string };

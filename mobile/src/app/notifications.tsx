@@ -21,7 +21,7 @@ import {
 import { useMarkNotificationsRead, useNotifications } from '@/api/hooks';
 import type { Notification } from '@/api/types';
 import { useKudosLabels } from '@/api/social-extra';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { Button, EmptyState, ErrorState, Header, PressableScale, RowSkeleton, Screen, Text } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
 import { timeAgo } from '@/lib/format';
@@ -190,7 +190,7 @@ function NotificationRow({ n, meta }: { n: Notification; meta: Meta }) {
       <View>
         {showActor && n.actor ? (
           <>
-            <Avatar config={n.actor.avatar} size={46} />
+            <UserPhoto user={n.actor} size={46} />
             <View style={[styles.typeBadge, { backgroundColor: strong, borderColor: colors.surface }]}>
               <Icon size={11} color={colors.surface} strokeWidth={2.6} />
             </View>

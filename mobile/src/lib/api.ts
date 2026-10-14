@@ -40,6 +40,8 @@ type RequestOptions = {
   query?: Record<string, string | number | boolean | undefined | null>;
   auth?: boolean;
   signal?: AbortSignal;
+  /** multipart upload (photos); sent instead of a JSON body */
+  form?: FormData;
 };
 
 let refreshing: Promise<boolean> | null = null;
@@ -84,14 +86,14 @@ function buildUrl(path: string, query?: RequestOptions['query']) {
 }
 
 export async function api<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, query, auth = true, signal } = opts;
+  const { method = 'GET', body, query, auth = true, signal, form } = opts;
 
   const send = async (): Promise<Response> => {
     const headers: Record<string, string> = { Accept: 'application/json' };
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (body !== undefined && !form) headers['Content-Type'] = 'application/json';
     const token = useSession.getState().accessToken;
     if (auth && token) headers.Authorization = `Bearer ${token}`;
-    return fetch(buildUrl(path, query), { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, signal });
+    return fetch(buildUrl(path, query), { method, headers, body: form ?? (body !== undefined ? JSON.stringify(body) : undefined), signal });
   };
 
   let res: Response;
@@ -131,4 +133,12 @@ export const get = <T,>(path: string, query?: RequestOptions['query']) => api<T>
 export const post = <T,>(path: string, body?: unknown, query?: RequestOptions['query']) => api<T>(path, { method: 'POST', body: body ?? {}, query });
 export const patch = <T,>(path: string, body: unknown) => api<T>(path, { method: 'PATCH', body });
 export const put = <T,>(path: string, body: unknown) => api<T>(path, { method: 'PUT', body });
+/** Upload a local image file (from the image picker or camera) as multipart form data. */
+export function uploadImage<T>(path: string, uri: string, fields: Record<string, string> = {}) {
+  const form = new FormData();
+  Object.entries(fields).forEach(([k, v]) => form.append(k, v));
+  form.append('file', { uri, name: 'photo.jpg', type: 'image/jpeg' } as unknown as Blob);
+  return api<T>(path, { method: 'POST', form });
+}
+
 export const del = <T,>(path: string, body?: unknown) => api<T>(path, { method: 'DELETE', body });

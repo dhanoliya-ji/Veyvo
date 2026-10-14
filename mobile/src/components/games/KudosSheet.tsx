@@ -5,7 +5,7 @@ import { Check } from 'lucide-react-native';
 import { isApiError, KUDOS_TAGS } from '@/api/games-extra';
 import { useGiveKudos } from '@/api/hooks';
 import type { UserSummary } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { PressableScale, Sheet, Text } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
@@ -64,7 +64,7 @@ export function KudosSheet({ visible, onClose, people }: { visible: boolean; onC
               accessibilityLabel={`${p.display_name}${done ? ', kudos sent' : ''}`}
               style={[styles.person, { borderColor: active ? colors.primary : 'transparent', backgroundColor: colors.surfaceAlt }]}
             >
-              <Avatar config={p.avatar} size={48} />
+              <UserPhoto user={p} size={48} />
               <Text variant="caption" numberOfLines={1} style={{ maxWidth: 72 }}>
                 {p.display_name}
               </Text>

@@ -3,7 +3,7 @@ import { FlatList, StyleSheet, TextInput, View, type NativeScrollEvent, type Nat
 import { Lock, MessageCircle, Send } from 'lucide-react-native';
 
 import type { RoomMessage } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { openReport } from '@/components/safety/ReportSheet';
 import { IconButton, PressableScale, Skeleton, Text } from '@/components/ui';
 import { clockTime } from '@/lib/format';
@@ -94,7 +94,7 @@ export function ChatPanel({ messages, loading, meId, lockedReason, onSend }: Pro
                 }
                 style={styles.msg}
               >
-                <View style={{ width: 30 }}>{grouped ? null : <Avatar config={item.sender.avatar} size={30} />}</View>
+                <View style={{ width: 30 }}>{grouped ? null : <UserPhoto user={item.sender} size={30} />}</View>
                 <View style={{ flex: 1 }}>
                   {grouped ? null : (
                     <View style={styles.msgHead}>

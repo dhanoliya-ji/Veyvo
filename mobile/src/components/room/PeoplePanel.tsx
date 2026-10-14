@@ -2,7 +2,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Hand, MicOff, Volume2 } from 'lucide-react-native';
 
 import type { Participant } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { Badge, Button, PressableScale, Text } from '@/components/ui';
 import { useTheme } from '@/theme/ThemeProvider';
 import { space } from '@/theme/tokens';
@@ -69,7 +69,7 @@ function PersonRow({ p, isMe, speaking, onPress, action }: { p: Participant; isM
       accessibilityHint="Opens options for this person"
     >
       <View style={[styles.avatarRing, { borderColor: speaking ? colors.success : 'transparent' }]}>
-        <Avatar config={p.avatar} size={40} />
+        <UserPhoto user={p} size={40} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="bodyStrong" numberOfLines={1}>

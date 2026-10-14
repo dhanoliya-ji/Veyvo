@@ -5,7 +5,8 @@ import { AtSign, BellRing, Eye, MessageCircle, UserPlus } from 'lucide-react-nat
 
 import { qk, useInterests } from '@/api/hooks';
 import type { AvatarConfig, Me, Privacy } from '@/api/types';
-import { AvatarEditor } from '@/components/avatar/AvatarEditor';
+import { PhotoGrid } from '@/components/photos/PhotoGrid';
+import { useMyPhotos } from '@/api/photos-extra';
 import { randomAvatar } from '@/components/avatar/options';
 import { InterestPicker } from '@/components/InterestPicker';
 import { Button, ErrorState, Header, Input, ListGroup, ListRow, ProgressBar, RowSkeleton, Screen, Text } from '@/components/ui';
@@ -18,18 +19,20 @@ import { toast } from '@/stores/toast';
 import { useTheme } from '@/theme/ThemeProvider';
 import { space } from '@/theme/tokens';
 
-const STEPS = ['You', 'Avatar', 'Interests', 'Privacy'] as const;
+const STEPS = ['You', 'Photos', 'Interests', 'Privacy'] as const;
 const USERNAME_RE = /^[a-z0-9][a-z0-9_.]{1,22}[a-z0-9]$/;
 
 export default function Setup() {
   const { colors } = useTheme();
   const interests = useInterests();
+  const myPhotos = useMyPhotos();
   const [step, setStep] = useState(0);
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [usernameState, setUsernameState] = useState<{ checking: boolean; ok: boolean | null; reason?: string }>({ checking: false, ok: null });
-  const [avatar, setAvatar] = useState<AvatarConfig>(() => randomAvatar());
+  // Legacy field still required by the API; profiles now use real photos.
+  const [avatar] = useState<AvatarConfig>(() => randomAvatar());
   const [selected, setSelected] = useState<number[]>([]);
   const [privacy, setPrivacy] = useState<Partial<Privacy>>({ profile_visibility: 'everyone', discoverable: true, show_online_status: 'friends', who_can_friend_request: 'everyone', allow_icebreakers: true });
   const [notifications, setNotifications] = useState(false);
@@ -60,7 +63,7 @@ export default function Setup() {
 
   const canNext = [
     displayName.trim().length > 0 && usernameState.ok === true,
-    true,
+    (myPhotos.data?.length ?? 0) >= 1,
     selected.length >= 3,
     true,
   ][step];
@@ -150,10 +153,10 @@ export default function Setup() {
         {step === 1 ? (
           <>
             <View style={{ gap: space.xs }}>
-              <Text variant="title">Make your avatar</Text>
-              <Text tone="muted">Veyvo uses cartoon avatars instead of photos, so you can be yourself without showing your face.</Text>
+              <Text variant="title">Add your photos</Text>
+              <Text tone="muted">Real photos help people get to know you. Add at least one — you can change them any time.</Text>
             </View>
-            <AvatarEditor value={avatar} onChange={setAvatar} />
+            <PhotoGrid />
           </>
         ) : null}
 

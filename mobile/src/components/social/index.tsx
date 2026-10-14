@@ -5,7 +5,7 @@ import { Check, Heart, UserPlus } from 'lucide-react-native';
 
 import { useSendFriendRequest } from '@/api/hooks';
 import type { UserSummary } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { Button, PressableScale, ProgressBar, Text } from '@/components/ui';
 import { ApiError, errorMessage } from '@/lib/api';
 import { VIBE_LABELS } from '@/lib/format';
@@ -83,7 +83,7 @@ export function PersonCard({ user }: { user: UserSummary }) {
         style={{ alignItems: 'center', gap: space.xs, alignSelf: 'stretch' }}
         accessibilityLabel={`${user.display_name}, ${sub}. Open profile`}
       >
-        <Avatar config={user.avatar} size={64} />
+        <UserPhoto user={user} size={64} />
         <Text variant="bodyStrong" numberOfLines={1} center>
           {user.display_name}
         </Text>

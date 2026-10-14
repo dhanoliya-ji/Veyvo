@@ -5,7 +5,8 @@ import { Gavel, Inbox, Search, ShieldAlert } from 'lucide-react-native';
 
 import { useAudit, useMe, useModReports, useModUserAction, useModUsers } from '@/api/hooks';
 import type { AdminUser } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
+import { PhotoQueue, VerificationQueue } from '@/components/moderation/MediaQueues';
 import { REPORT_REASONS } from '@/components/safety/ReportSheet';
 import { Badge, Button, Chip, EmptyState, ErrorState, Header, Input, PressableScale, RowSkeleton, Screen, SegmentedControl, Sheet, Text } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
@@ -14,7 +15,7 @@ import { toast } from '@/stores/toast';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
 
-type Tab = 'queue' | 'users' | 'audit';
+type Tab = 'queue' | 'verify' | 'photos' | 'users' | 'audit';
 const STATUSES = ['open', 'reviewing', 'actioned', 'dismissed'] as const;
 const URGENT = new Set(['underage', 'threats', 'self_harm', 'sexual']);
 
@@ -106,7 +107,7 @@ function Users() {
         ListEmptyComponent={debounced.length >= 2 && !users.isFetching ? <Text tone="muted">No accounts found.</Text> : null}
         renderItem={({ item }) => (
           <PressableScale onPress={() => setTarget(item)} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]} accessibilityLabel={`${item.display_name}, ${item.status}`}>
-            <Avatar config={item.avatar} size={40} />
+            <UserPhoto user={item} size={40} />
             <View style={{ flex: 1 }}>
               <Text variant="bodyStrong">{item.display_name}</Text>
               <Text variant="caption" tone="muted">
@@ -189,11 +190,13 @@ export default function Moderation() {
             onChange={setTab}
             options={[
               { value: 'queue', label: 'Reports' },
+              { value: 'verify', label: 'Selfies' },
+              { value: 'photos', label: 'Photos' },
               { value: 'users', label: 'Users' },
-              { value: 'audit', label: 'Audit log' },
+              { value: 'audit', label: 'Audit' },
             ]}
           />
-          {tab === 'queue' ? <Queue /> : tab === 'users' ? <Users /> : <Audit />}
+          {tab === 'queue' ? <Queue /> : tab === 'verify' ? <VerificationQueue /> : tab === 'photos' ? <PhotoQueue /> : tab === 'users' ? <Users /> : <Audit />}
         </View>
       )}
     </Screen>

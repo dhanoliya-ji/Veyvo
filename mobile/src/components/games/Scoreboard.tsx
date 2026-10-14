@@ -4,7 +4,7 @@ import { Check, Crown, Gem, Pencil } from 'lucide-react-native';
 import { router } from 'expo-router';
 
 import type { GamePlayer } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { PressableScale, Text } from '@/components/ui';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
@@ -50,7 +50,7 @@ export function Scoreboard({
                 {i + 1}
               </Text>
             ) : null}
-            <Avatar config={p.avatar} size={36} />
+            <UserPhoto user={p} size={36} />
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Text variant="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
@@ -100,7 +100,7 @@ export function Podium({ players, meId }: { players: GamePlayer[]; meId?: string
           >
             {rank === 0 ? <Crown size={22} color={colors.gold} fill={colors.gold} /> : null}
             <View style={{ borderRadius: 999, borderWidth: 3, borderColor: MEDALS[rank] }}>
-              <Avatar config={p.avatar} size={rank === 0 ? 72 : 56} />
+              <UserPhoto user={p} size={rank === 0 ? 72 : 56} />
             </View>
             <Text variant="label" numberOfLines={1} style={{ maxWidth: 96 }}>
               {p.display_name}

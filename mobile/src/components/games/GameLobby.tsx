@@ -5,7 +5,7 @@ import { Crown, Play, Share2, UserPlus } from 'lucide-react-native';
 
 import { GAME_META, isApiError } from '@/api/games-extra';
 import { useGameActions } from '@/api/hooks';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { Button, Card, Text } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
@@ -83,7 +83,7 @@ export function GameLobby({ ctx, onJoin, joining }: { ctx: GameCtx; onJoin: () =
           {active.map((p) => (
             <Animated.View key={p.id} entering={reduceMotion ? undefined : ZoomIn.springify().damping(14)} style={styles.player} accessible accessibilityLabel={`${p.display_name}${p.id === game.host_id ? ', host' : ''}${p.id === meId ? ', you' : ''}`}>
               <View>
-                <Avatar config={p.avatar} size={60} />
+                <UserPhoto user={p} size={60} />
                 {p.id === game.host_id ? (
                   <View style={[styles.crown, { backgroundColor: colors.bg }]}>
                     <Crown size={14} color={colors.gold} fill={colors.gold} />

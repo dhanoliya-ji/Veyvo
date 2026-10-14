@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
-import { Activity, Check, Eye, EyeOff, Hash, MessageCircle, Search, Send, Sparkles, UserPlus } from 'lucide-react-native';
+import { Activity, Check, Eye, EyeOff, Hash, Images, MessageCircle, Search, Send, Sparkles, UserPlus } from 'lucide-react-native';
 
 import { useMe, useUpdatePrivacy } from '@/api/hooks';
 import type { Privacy } from '@/api/types';
@@ -69,6 +69,13 @@ export default function PrivacySettings() {
               <ListRow icon={Eye} iconTone="primary" title="Profile visibility" value={label('profile_visibility')} onPress={() => setOpen('profile_visibility')} />
               <ListRow icon={Search} iconTone="primary" title="Show me in search" subtitle="Let people find you by name or username." toggle={{ value: p.discoverable, onChange: (v) => set({ discoverable: v }) }} />
               <ListRow icon={Hash} iconTone="primary" title="Show my interests" subtitle="Friends can always see them." toggle={{ value: p.show_interests, onChange: (v) => set({ show_interests: v }) }} />
+              <ListRow
+                icon={Images}
+                iconTone="primary"
+                title="All my photos visible to everyone"
+                subtitle="Off: people who aren't your friends only see your profile picture."
+                toggle={{ value: p.photo_visibility !== 'friends', onChange: (v) => set({ photo_visibility: v ? 'everyone' : 'friends' }) }}
+              />
             </>,
             'Profile',
           )}

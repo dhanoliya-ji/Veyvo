@@ -12,7 +12,8 @@ import {
   LogOut,
   MessageSquareWarning,
   Moon,
-  Palette,
+  BadgeCheck,
+  Camera,
   Shield,
   ShieldCheck,
   UserRound,
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react-native';
 
 import { useMe } from '@/api/hooks';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { Badge, Card, Header, ListGroup, ListRow, Screen, Text, confirm } from '@/components/ui';
 import { LEGAL_URLS, SUPPORT_EMAIL } from '@/lib/config';
 import { signOut } from '@/lib/signOut';
@@ -42,7 +43,7 @@ export default function SettingsHome() {
       <View style={{ gap: space.xl }}>
         {me.data ? (
           <Card onPress={() => router.push('/settings/profile')} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }} accessibilityLabel="Edit profile">
-            <Avatar config={me.data.avatar} size={52} />
+            <UserPhoto user={me.data} size={52} />
             <View style={{ flex: 1 }}>
               <Text variant="subheading" numberOfLines={1}>
                 {me.data.display_name}
@@ -56,7 +57,8 @@ export default function SettingsHome() {
 
         <ListGroup title="Profile">
           <ListRow icon={UserRound} iconTone="primary" title="Edit profile" subtitle="Name, username, bio" onPress={() => router.push('/settings/profile')} />
-          <ListRow icon={Palette} iconTone="primary" title="Avatar & vibe" onPress={() => router.push('/avatar')} />
+          <ListRow icon={Camera} iconTone="primary" title="Photos" subtitle="Your profile photos" onPress={() => router.push('/photos')} />
+          <ListRow icon={BadgeCheck} iconTone="primary" title="Verification" value={me.data?.verified ? 'Verified' : undefined} onPress={() => router.push('/verification')} />
           <ListRow icon={Hash} iconTone="primary" title="Interests" value={me.data ? `${me.data.interests.length} selected` : undefined} onPress={() => router.push('/settings/interests')} />
         </ListGroup>
 

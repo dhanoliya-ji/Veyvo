@@ -13,7 +13,7 @@ import {
   useRooms,
 } from '@/api/hooks';
 import type { Community, CommunityMember, CommunityPost } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { RoomCard, UserRow } from '@/components/cards';
 import { LiveDot } from '@/components/LiveDot';
 import { openReport } from '@/components/safety/ReportSheet';
@@ -377,7 +377,7 @@ function PostsTab({
               style={[styles.post, { backgroundColor: colors.surface, borderColor: colors.border }]}
             >
               <View style={styles.postHead}>
-                <Avatar config={p.author.avatar} size={36} />
+                <UserPhoto user={p.author} size={36} />
                 <View style={{ flex: 1 }}>
                   <Text variant="bodyStrong" numberOfLines={1}>
                     {mine ? 'You' : p.author.display_name}

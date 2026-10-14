@@ -5,7 +5,7 @@ import { Check, Eraser, Paintbrush, Send, Sparkles, Trash2, Undo2 } from 'lucide
 
 import { isApiError } from '@/api/games-extra';
 import { useGameActions } from '@/api/hooks';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { IconButton, PressableScale, Text, confirm } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
@@ -317,7 +317,7 @@ export function DoodleRound({ ctx, canvasRef, feed }: { ctx: GameCtx; canvasRef:
             const p = game.players.find((x) => x.id === id);
             return p ? (
               <View key={id} style={[styles.guessedChip, { backgroundColor: colors.successSoft }]}>
-                <Avatar config={p.avatar} size={20} />
+                <UserPhoto user={p} size={20} />
                 <Check size={12} color={colors.success} strokeWidth={3} />
               </View>
             ) : null;

@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Trophy } from 'lucide-react-native';
 
 import { RANK_LABELS, useLeaderboard, type LeaderboardEntry } from '@/api/moments-extra';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { Badge, EmptyState, ErrorState, PressableScale, RowSkeleton, SegmentedControl, Text } from '@/components/ui';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
@@ -25,7 +25,7 @@ function PodiumSpot({ entry, place }: { entry: LeaderboardEntry; place: 1 | 2 | 
       style={styles.podiumSpot}
       accessibilityLabel={`Place ${place}: ${entry.user.display_name}, ${entry.points} points`}
     >
-      <Avatar config={entry.user.avatar} size={place === 1 ? 64 : 52} />
+      <UserPhoto user={entry.user} size={place === 1 ? 64 : 52} />
       <Text variant="label" numberOfLines={1} style={{ maxWidth: 96 }}>
         {entry.user.display_name}
       </Text>
@@ -86,7 +86,7 @@ export function LeaderboardTab({ communityId }: { communityId: string }) {
           <Text variant="bodyStrong" tone="muted" style={{ width: 28 }}>
             {e.rank}
           </Text>
-          <Avatar config={e.user.avatar} size={36} />
+          <UserPhoto user={e.user} size={36} />
           <Text variant="bodyStrong" style={{ flex: 1 }} numberOfLines={1}>
             {e.user.display_name}
           </Text>

@@ -21,7 +21,7 @@ import {
 
 import { useAnswerDaily, useClaimQuest, useHome, useMe } from '@/api/hooks';
 import type { DailyQuestion, Quest } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { CommunityCard, RoomCard } from '@/components/cards';
 import { EventBanner } from '@/components/moments/EventBanner';
 import { useTabBarInset } from '@/components/TabBar';
@@ -204,7 +204,7 @@ export default function Home() {
         {/* Header */}
         <View style={styles.header}>
           <PressableScale onPress={() => router.push('/profile')} accessibilityLabel="Your profile">
-            <Avatar config={me.data?.avatar} size={44} />
+            <UserPhoto user={me.data} size={44} />
           </PressableScale>
           <View style={{ flex: 1 }}>
             <Text variant="caption" tone="muted">

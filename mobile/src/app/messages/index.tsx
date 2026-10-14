@@ -6,7 +6,7 @@ import { MessageCircleHeart, UserPlus } from 'lucide-react-native';
 
 import { useConversations, useMe } from '@/api/hooks';
 import type { Conversation } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { EmptyState, ErrorState, Header, IconButton, PressableScale, RowSkeleton, Screen, Text } from '@/components/ui';
 import { timeAgo } from '@/lib/format';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -95,7 +95,7 @@ function ConversationRow({ conversation: c, myId }: { conversation: Conversation
 
   return (
     <PressableScale onPress={() => router.push(`/messages/${c.id}`)} scaleTo={0.99} accessibilityLabel={label} accessibilityHint="Opens the chat" style={styles.row}>
-      <Avatar config={c.other_user.avatar} size={52} online={online} />
+      <UserPhoto user={c.other_user} size={52} online={online} />
       <View style={{ flex: 1, gap: 2 }}>
         <View style={styles.top}>
           <Text variant={unread ? 'bodyStrong' : 'subheading'} numberOfLines={1} style={{ flex: 1 }}>

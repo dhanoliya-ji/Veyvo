@@ -5,6 +5,7 @@ import { BookOpen, CalendarClock, Lock, MessageSquareText, Mic, Users } from 'lu
 
 import type { Community, Room, UserSummary } from '@/api/types';
 import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { SceneBackground } from '@/components/scene/SceneBackground';
 import { Badge, PressableScale, Text } from '@/components/ui';
 import { LiveDot } from '@/components/LiveDot';
@@ -20,7 +21,7 @@ export function AvatarStack({ people, size = 26, max = 4, extra = 0 }: { people:
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
       {shown.map((p, i) => (
         <View key={p.id} style={{ marginLeft: i === 0 ? 0 : -size * 0.32, borderRadius: size, borderWidth: 2, borderColor: colors.surface }}>
-          <Avatar config={p.avatar} size={size} />
+          <UserPhoto user={p} size={size} />
         </View>
       ))}
       {more > 0 ? (
@@ -152,7 +153,7 @@ export function UserRow({ user, subtitle, right, onPress, online }: { user: User
       style={styles.userRow}
       accessibilityLabel={`${user.display_name}${sub ? `, ${sub}` : ''}`}
     >
-      <Avatar config={user.avatar} size={46} online={online} />
+      <UserPhoto user={user} size={46} online={online} />
       <View style={{ flex: 1 }}>
         <Text variant="bodyStrong" numberOfLines={1}>
           {user.display_name}

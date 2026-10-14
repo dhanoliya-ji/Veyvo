@@ -8,7 +8,7 @@ import { AlertCircle, ArrowLeft, Ban, Eraser, Flag, Lock, MessageCircleHeart, Mo
 import { markConversationRead, qk, sendMessageRequest, useBlock, useConversation, useDeleteMessage, useMe, useMessages } from '@/api/hooks';
 import type { Conversation, LocalMessage, Page } from '@/api/types';
 import { patchCachedMessage, useClearConversation } from '@/api/social-extra';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { openReport } from '@/components/safety/ReportSheet';
 import { EmptyState, ErrorState, IconButton, ListGroup, ListRow, PressableScale, RowSkeleton, Screen, Sheet, Text, confirm } from '@/components/ui';
 import { upsertMessage } from '@/hooks/useRealtimeSync';
@@ -277,7 +277,7 @@ export default function Chat() {
         <ErrorState error={messages.error} onRetry={() => messages.refetch()} />
       ) : items.length === 0 ? (
         <View style={styles.emptyWrap}>
-          {other ? <Avatar config={other.avatar} size={84} /> : null}
+          {other ? <UserPhoto user={other} size={84} /> : null}
           <Text variant="heading" center>
             Say hi to {name} 👋
           </Text>
@@ -346,7 +346,7 @@ function ChatHeader({ conversation, typing, onMenu }: { conversation?: Conversat
       <IconButton icon={ArrowLeft} label="Go back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages'))} />
       {other ? (
         <PressableScale onPress={() => router.push(`/user/${other.id}`)} style={styles.headerWho} accessibilityLabel={`${other.display_name}${status ? `, ${status}` : ''}. View profile`}>
-          <Avatar config={other.avatar} size={38} online={online} />
+          <UserPhoto user={other} size={38} online={online} />
           <View style={{ flex: 1 }}>
             <Text variant="subheading" numberOfLines={1}>
               {other.display_name}

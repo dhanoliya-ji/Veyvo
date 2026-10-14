@@ -2,12 +2,13 @@ import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  BadgeCheck,
   Flame,
   Gavel,
   Gem,
   Heart,
   MessageCircle,
-  Palette,
+  Camera,
   Pencil,
   Settings,
   ShieldCheck,
@@ -18,7 +19,7 @@ import {
 } from 'lucide-react-native';
 
 import { useCommunities, useFriends, useMe, useProfile } from '@/api/hooks';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { CommunityCard } from '@/components/cards';
 import { useTabBarInset } from '@/components/TabBar';
 import { Badge, Button, Card, Chip, ErrorState, IconButton, ListGroup, ListRow, PressableScale, ProgressBar, SectionHeader, Skeleton, Text } from '@/components/ui';
@@ -96,10 +97,10 @@ export default function Profile() {
         {/* Identity card */}
         <Card style={{ alignItems: 'center', gap: space.sm, paddingVertical: space.xxl }}>
           {m ? (
-            <PressableScale onPress={() => router.push('/avatar')} accessibilityLabel="Edit your avatar">
-              <Avatar config={m.avatar} size={112} />
+            <PressableScale onPress={() => router.push('/photos')} accessibilityLabel="Edit your photos">
+              <UserPhoto user={m} size={112} />
               <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
-                <Palette size={14} color={colors.onPrimary} />
+                <Camera size={14} color={colors.onPrimary} />
               </View>
             </PressableScale>
           ) : (
@@ -189,7 +190,8 @@ export default function Profile() {
             <ListRow icon={MessageCircle} iconTone="primary" title="Messages" onPress={() => router.push('/messages')} />
             <ListRow icon={Trophy} iconTone="warning" title="Quests & streak" onPress={() => router.push('/quests')} />
             <ListRow icon={Sparkles} iconTone="accent" title="Moments" subtitle="Your highlights, ready to share" onPress={() => router.push('/moments')} />
-            <ListRow icon={ShoppingBag} iconTone="accent" title="Shop" subtitle="Avatar items and room scenes" onPress={() => router.push('/shop')} />
+            <ListRow icon={BadgeCheck} iconTone="primary" title={m?.verified ? 'Verified' : 'Get verified'} subtitle="Selfie verification" onPress={() => router.push('/verification')} />
+            <ListRow icon={ShoppingBag} iconTone="accent" title="Shop" subtitle="Gems and Veyvo Plus" onPress={() => router.push('/shop')} />
           </ListGroup>
           <ListGroup>
             <ListRow icon={ShieldCheck} iconTone="success" title="Safety centre" subtitle="Blocking, reporting and your privacy" onPress={() => router.push('/safety')} />

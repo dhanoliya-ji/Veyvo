@@ -12,7 +12,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "app.veyvo",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Veyvo uses your microphone so you can talk in voice hangouts. You can mute anytime."
+        "NSMicrophoneUsageDescription": "Veyvo uses your microphone so you can talk in voice hangouts. You can mute anytime.",
+        "NSCameraUsageDescription": "Veyvo uses your camera for profile photos, selfie verification and video hangouts. Your camera is always off until you turn it on.",
+        "NSPhotoLibraryUsageDescription": "Veyvo lets you choose photos for your profile."
       },
       "bitcode": false
     },
@@ -39,7 +41,6 @@
         "android.permission.BLUETOOTH"
       ],
       "blockedPermissions": [
-        "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.READ_CONTACTS",
@@ -91,7 +92,22 @@
           "iosAppId": "ca-app-pub-3940256099942544~1458002511"
         }
       ],
-      "expo-iap"
+      "expo-iap",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Veyvo uses your camera for selfie verification and video hangouts. It is only on when you turn it on.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Veyvo lets you choose photos for your profile.",
+          "cameraPermission": "Veyvo uses your camera so you can take a profile photo."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

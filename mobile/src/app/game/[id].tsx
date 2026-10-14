@@ -8,7 +8,7 @@ import { Ban, Flag, Gamepad2, X } from 'lucide-react-native';
 
 import { clockOffset, GAME_META, isApiError } from '@/api/games-extra';
 import { qk, useGame, useGameActions, useMe } from '@/api/hooks';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { DoodleRound, type FeedItem } from '@/components/games/DoodleRound';
 import type { CanvasHandle, Stroke } from '@/components/games/DrawingCanvas';
 import { GameFinished } from '@/components/games/GameFinished';
@@ -270,7 +270,7 @@ export default function GameScreen() {
               accessibilityLabel={`Report ${p.display_name}`}
               style={[styles.reportRow, { borderColor: colors.border }]}
             >
-              <Avatar config={p.avatar} size={40} />
+              <UserPhoto user={p} size={40} />
               <Text variant="bodyStrong" style={{ flex: 1 }} numberOfLines={1}>
                 {p.display_name}
               </Text>

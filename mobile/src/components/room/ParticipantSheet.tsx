@@ -5,7 +5,7 @@ import { Award, Ban, Flag, Hand, Mic, MicOff, ShieldCheck, ShieldOff, UserMinus,
 
 import { useBlock, useConfig, useGiveKudos, useRoomAction } from '@/api/hooks';
 import type { ModerateAction, Participant } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
+import { UserPhoto } from '@/components/UserPhoto';
 import { openReport } from '@/components/safety/ReportSheet';
 import { Badge, Chip, Divider, ListGroup, ListRow, Sheet, Text, confirm } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
@@ -100,7 +100,7 @@ export function ParticipantSheet({ roomId, participant, meId, iAmHost, canModera
       {p ? (
         <View style={{ gap: space.lg }}>
           <View style={styles.head}>
-            <Avatar config={p.avatar} size={64} />
+            <UserPhoto user={p} size={64} />
             <View style={{ flex: 1, gap: 4 }}>
               <Text variant="heading" numberOfLines={1}>
                 {p.display_name}

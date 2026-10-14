@@ -24,7 +24,8 @@ import {
 import { qk, useBlock, useGiveKudos, useProfile, useRemoveFriend, useRespondRequest, useSendFriendRequest, useStartConversation } from '@/api/hooks';
 import type { PublicProfile } from '@/api/types';
 import { KUDOS_EMOJI, useKudosLabels } from '@/api/social-extra';
-import { Avatar } from '@/components/avatar/Avatar';
+import { PhotoGallery } from '@/components/photos/PhotoGallery';
+import { UserPhoto } from '@/components/UserPhoto';
 import { openReport } from '@/components/safety/ReportSheet';
 import { OnlineLabel } from '@/components/social';
 import { Badge, Button, Card, Chip, EmptyState, ErrorState, Header, IconButton, ListGroup, ListRow, PressableScale, ProgressBar, Screen, SectionHeader, Sheet, Skeleton, Text, confirm } from '@/components/ui';
@@ -95,7 +96,7 @@ function BlockedView({ p }: { p: PublicProfile }) {
   return (
     <View style={{ alignItems: 'center', gap: space.md, paddingTop: space.xl }}>
       <View style={{ opacity: 0.5 }}>
-        <Avatar config={p.avatar} size={96} />
+        <UserPhoto user={p} size={96} />
       </View>
       <Text variant="title" center>
         {p.display_name}
@@ -122,7 +123,11 @@ function ProfileBody({ p, onKudos }: { p: PublicProfile; onKudos: () => void }) 
     <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(220)} style={{ gap: space.xl }}>
       {/* Hero */}
       <View style={{ alignItems: 'center', gap: space.sm, paddingTop: space.sm }}>
-        <Avatar config={p.avatar} size={120} online={p.online === true} label={`${p.display_name}'s avatar`} />
+        {p.photos?.length ? (
+          <PhotoGallery photos={p.photos} name={p.display_name} verified={p.verified} ownerId={p.id} canReport={p.relationship !== 'self'} />
+        ) : (
+          <UserPhoto user={p} size={120} online={p.online === true} label={`${p.display_name}'s photo`} />
+        )}
         <Text variant="title" center>
           {p.display_name}
         </Text>
