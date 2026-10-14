@@ -250,7 +250,7 @@ class PushTokenIn(ApiModel):
 
 # ---------- Safety ----------
 class ReportIn(ApiModel):
-    target_type: Literal["user", "room", "community", "message", "room_message", "community_post"]
+    target_type: Literal["user", "room", "community", "message", "room_message", "community_post", "photo"]
     target_id: str = Field(min_length=1, max_length=64)
     reason: str
     description: CleanText = Field(default="", max_length=1000)

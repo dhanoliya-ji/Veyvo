@@ -43,6 +43,20 @@ class Settings(BaseSettings):
     # Expo push
     expo_push_access_token: str = ""
 
+    # Media (profile photos, verification selfies). `local` for development, `s3` (S3/R2) in production.
+    storage_backend: Literal["local", "s3"] = "local"
+    media_dir: str = "./media"
+    s3_bucket: str = ""
+    s3_endpoint_url: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_region: str = ""
+    max_photos: int = 6
+    # Automatic image moderation. "none" = photos wait for a moderator (auto-approved only in development).
+    moderation_provider: Literal["none", "sightengine"] = "none"
+    sightengine_api_user: str = ""
+    sightengine_api_secret: str = ""
+
     max_room_capacity: int = 50
     plus_room_capacity: int = 100
 
@@ -92,6 +106,8 @@ class Settings(BaseSettings):
             problems.append("DATABASE_URL must point to PostgreSQL in production")
         if not self.redis_url:
             problems.append("REDIS_URL is required in production (multi-instance presence and rate limits)")
+        if self.storage_backend != "s3":
+            problems.append("STORAGE_BACKEND must be s3 in production (private bucket + signed URLs)")
         if not self.public_base_url.startswith("https://"):
             problems.append("PUBLIC_BASE_URL must use https in production")
         if problems:

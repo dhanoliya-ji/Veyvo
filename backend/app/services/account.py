@@ -29,6 +29,7 @@ from app.models import (
     RoomMessage,
     User,
 )
+from app.services.photos import my_photos
 from app.services.profiles import user_interests
 from app.services.users import summaries
 
@@ -73,6 +74,9 @@ async def delete_account(db: AsyncSession, user: User, password: str) -> None:
         if successor:
             successor.role = "owner"
 
+    from app.services.photos import delete_all_media
+
+    await delete_all_media(db, user_id)
     await db.delete(user)
     await db.commit()
     logger.info("account_deleted")
@@ -130,6 +134,8 @@ async def export_data(db: AsyncSession, user: User) -> dict:
             )
         },
         "interests": [i.name for i in await user_interests(db, user.id)],
+        "photos": await my_photos(db, user.id),
+        "verified_at": p.verified_at.isoformat() if p.verified_at else None,
         "friends": [{"username": people[f].username, "display_name": people[f].display_name} for f in friend_ids],
         "blocked": [{"username": blocked_people[b.blocked_id].username} for b in blocks],
         "messages_sent": [

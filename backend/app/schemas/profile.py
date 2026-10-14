@@ -82,6 +82,7 @@ class PrivacyOut(ApiModel):
     show_online_status: Literal["friends", "nobody"]
     discoverable: bool
     show_interests: bool
+    photo_visibility: Literal["everyone", "friends"] = "everyone"
     allow_icebreakers: bool
     notification_previews: bool
     notification_prefs: dict
@@ -95,6 +96,7 @@ class PrivacyUpdate(ApiModel):
     show_online_status: Literal["friends", "nobody"] | None = None
     discoverable: bool | None = None
     show_interests: bool | None = None
+    photo_visibility: Literal["everyone", "friends"] | None = None
     allow_icebreakers: bool | None = None
     notification_previews: bool | None = None
     notification_prefs: dict[str, bool] | None = None
@@ -134,6 +136,8 @@ class MeOut(ApiModel):
     display_name: str
     bio: str
     avatar: dict
+    photo_url: str | None = None
+    verified: bool = False
     vibe: str | None
     interests: list[InterestOut]
     privacy: PrivacyOut
@@ -206,6 +210,7 @@ class PublicProfile(UserSummary):
     can_friend_request: bool
     can_invite: bool
     limited: bool = False  # profile restricted to friends
+    photos: list[dict] = []
 
 
 class KudosIn(ApiModel):

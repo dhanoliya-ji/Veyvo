@@ -6,6 +6,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFound
+from app.core.storage import get_storage
 from app.core.store import get_store
 from app.models import Block, FriendRequest, Friendship, Profile, User
 from app.schemas.common import UserSummary
@@ -56,6 +57,8 @@ def summary(profile: Profile | None, user_id: uuid.UUID | None = None) -> UserSu
         avatar=profile.avatar or {},
         level=level_for_xp(profile.xp),
         vibe=profile.vibe,
+        photo_url=get_storage().url(profile.primary_photo_key) if profile.primary_photo_key else None,
+        verified=profile.verified_at is not None,
     )
 
 

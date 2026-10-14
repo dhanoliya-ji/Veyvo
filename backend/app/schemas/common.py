@@ -52,6 +52,8 @@ class UserSummary(ApiModel):
     avatar: dict
     level: int = 1
     vibe: str | None = None
+    photo_url: str | None = None
+    verified: bool = False
 
 
 class TimestampedId(ApiModel):

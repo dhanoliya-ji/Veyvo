@@ -37,6 +37,7 @@ PUSH_TEXT = {
     "icebreaker_connected": ("New friend!", "Your icebreaker match wants to stay friends too"),
     "moderation_warning": ("Account notice", "Please review a notice about your account"),
     "security": ("Security notice", "There was a security change on your account"),
+    "verification": ("Verification update", "Your selfie verification has been reviewed"),
 }
 
 _background: set[asyncio.Task] = set()

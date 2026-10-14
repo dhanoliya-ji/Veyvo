@@ -12,6 +12,11 @@ os.environ["LIVEKIT_API_KEY"] = ""
 os.environ["LIVEKIT_API_SECRET"] = ""
 os.environ["JWT_SECRET_KEY"] = "test-secret-test-secret-test-secret-123"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_tmpdir}/bootstrap.db"
+os.environ["MEDIA_DIR"] = f"{_tmpdir}/media"
+os.environ["STORAGE_BACKEND"] = "local"
+os.environ["MODERATION_PROVIDER"] = "none"
+os.environ["ADMOB_ENABLED"] = "false"
+os.environ["GOOGLE_PLAY_SERVICE_ACCOUNT"] = ""
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402

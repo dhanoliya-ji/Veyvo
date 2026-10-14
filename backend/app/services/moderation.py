@@ -93,6 +93,14 @@ async def _resolve_target(db: AsyncSession, reporter: User, target_type: str, ta
         if community is None:
             raise not_found
         return community.owner_id, {"name": community.name, "description": community.description}
+    if target_type == "photo":
+        from app.models import Photo
+        from app.services.photos import photo_url
+
+        photo = await db.get(Photo, tid)
+        if photo is None or photo.status != "approved":
+            raise not_found
+        return photo.user_id, {"photo_id": str(photo.id), "photo_url": photo_url(photo.storage_key)}
     if target_type == "community_post":
         post = await db.get(CommunityPost, tid)
         if post is None:

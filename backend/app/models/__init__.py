@@ -32,12 +32,14 @@ from app.models.user import (
     ModerationAction,
     Notification,
     OneTimeCode,
+    Photo,
     PrivacySettings,
     Profile,
     PushToken,
     Report,
     User,
     UserInterest,
+    VerificationRequest,
 )
 
 __all__ = [
@@ -68,6 +70,7 @@ __all__ = [
     "Notification",
     "OneTimeCode",
     "OwnedItem",
+    "Photo",
     "PrivacySettings",
     "Profile",
     "PushToken",
@@ -78,4 +81,5 @@ __all__ = [
     "RoomMessage",
     "User",
     "UserInterest",
+    "VerificationRequest",
 ]

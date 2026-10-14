@@ -77,6 +77,9 @@ class Profile(TimestampMixin, Base):
     streak_freezes: Mapped[int] = mapped_column(Integer, default=1)
     streak_last_date: Mapped[date | None] = mapped_column(Date)
     onboarded_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    # Approved photo shown as the profile picture (denormalised for fast summaries).
+    primary_photo_key: Mapped[str | None] = mapped_column(String(200))
+    verified_at: Mapped[datetime | None] = mapped_column(TZDateTime())
     # Veyvo Plus entitlement, set only from a server-verified Google Play subscription.
     plus_until: Mapped[datetime | None] = mapped_column(TZDateTime())
 
@@ -96,6 +99,8 @@ class PrivacySettings(TimestampMixin, Base):
     show_online_status: Mapped[str] = mapped_column(String(20), default="friends")  # friends | nobody
     discoverable: Mapped[bool] = mapped_column(Boolean, default=True)
     show_interests: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Who can see photos beyond the profile picture.
+    photo_visibility: Mapped[str] = mapped_column(String(20), default="everyone")  # everyone | friends
     allow_icebreakers: Mapped[bool] = mapped_column(Boolean, default=True)
     notification_previews: Mapped[bool] = mapped_column(Boolean, default=False)
     notification_prefs: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -235,3 +240,36 @@ class ModerationAction(Base):
     reason: Mapped[str] = mapped_column(Text, default="")
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+
+
+class Photo(Base):
+    """A profile photo. Re-encoded on upload (EXIF/GPS removed) and moderated before it is shown."""
+
+    __tablename__ = "photos"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    storage_key: Mapped[str] = mapped_column(String(200), unique=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | approved | rejected
+    width: Mapped[int] = mapped_column(Integer, default=0)
+    height: Mapped[int] = mapped_column(Integer, default=0)
+    moderation: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    reviewed_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+
+
+class VerificationRequest(Base):
+    """Selfie verification. The selfie is private, compared with profile photos, then deleted."""
+
+    __tablename__ = "verification_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    selfie_key: Mapped[str | None] = mapped_column(String(200))
+    gesture: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | approved | rejected
+    reviewer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    note: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    reviewed_at: Mapped[datetime | None] = mapped_column(TZDateTime())

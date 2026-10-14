@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 
-from app.api.routes import auth, communities, conversations, engagement, games, me, moments, monetization, rooms, safety, users
+from app.api.routes import auth, communities, conversations, engagement, games, me, moments, monetization, photos, rooms, safety, users
 from app.content.catalog import INTERESTS
 from app.core import database
 from app.core.config import get_settings
@@ -102,9 +102,10 @@ def create_app() -> FastAPI:
             db_ok = False
         return {"status": "ok" if db_ok else "degraded", "database": db_ok, "media": settings.media_configured}
 
-    for module in (auth, me, users, conversations, rooms, communities, games, engagement, moments, monetization, safety):
+    for module in (auth, me, users, conversations, rooms, communities, games, engagement, moments, monetization, photos, safety):
         app.include_router(module.router, prefix=API_PREFIX)
     app.include_router(ws_routes.router)
+    app.include_router(photos.media_router)
     app.include_router(pages.router)
     return app
 

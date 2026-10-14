@@ -18,6 +18,7 @@ from app.schemas.profile import (
     StreakOut,
 )
 from app.services import rewards
+from app.services.photos import photo_url, visible_photos
 from app.services.users import (
     are_friends,
     friend_ids,
@@ -57,6 +58,8 @@ async def build_me(db: AsyncSession, user: User) -> MeOut:
         display_name=profile.display_name,
         bio=profile.bio,
         avatar=profile.avatar,
+        photo_url=photo_url(profile.primary_photo_key),
+        verified=profile.verified_at is not None,
         vibe=profile.vibe,
         interests=[InterestOut.model_validate(i) for i in interests],
         privacy=PrivacyOut.model_validate(privacy),
@@ -216,6 +219,7 @@ async def public_profile(db: AsyncSession, viewer: User, target_id: uuid.UUID) -
         can_friend_request=can_request,
         can_invite=not is_self and (privacy.who_can_invite == "everyone" or (privacy.who_can_invite == "friends" and is_friend)),
         limited=limited,
+        photos=await visible_photos(db, viewer.id, target, is_friend),
     )
 
 
