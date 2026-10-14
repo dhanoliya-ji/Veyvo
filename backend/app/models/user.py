@@ -1,10 +1,10 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base, TimestampMixin, utcnow
+from app.core.database import Base, TimestampMixin, TZDateTime, utcnow
 
 
 class User(TimestampMixin, Base):
@@ -22,10 +22,10 @@ class User(TimestampMixin, Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), default="user")  # user | moderator | admin
     status: Mapped[str] = mapped_column(String(20), default="active")  # active | suspended | banned
-    suspended_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    suspended_until: Mapped[datetime | None] = mapped_column(TZDateTime())
     status_reason: Mapped[str | None] = mapped_column(String(500))
-    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    adult_attested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    email_verified_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    adult_attested_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
     profile: Mapped["Profile"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan", lazy="joined")
     privacy: Mapped["PrivacySettings"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan", lazy="joined")
@@ -41,10 +41,10 @@ class AuthSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     previous_token_hash: Mapped[str | None] = mapped_column(String(64), index=True)
     platform: Mapped[str | None] = mapped_column(String(20))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    last_used_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(TZDateTime())
+    revoked_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 
 
 class OneTimeCode(Base):
@@ -55,9 +55,9 @@ class OneTimeCode(Base):
     purpose: Mapped[str] = mapped_column(String(30))  # verify_email | reset_password
     code_hash: Mapped[str] = mapped_column(String(64))
     attempts: Mapped[int] = mapped_column(Integer, default=0)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(TZDateTime())
+    consumed_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class Profile(TimestampMixin, Base):
@@ -76,7 +76,7 @@ class Profile(TimestampMixin, Base):
     streak_best: Mapped[int] = mapped_column(Integer, default=0)
     streak_freezes: Mapped[int] = mapped_column(Integer, default=1)
     streak_last_date: Mapped[date | None] = mapped_column(Date)
-    onboarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    onboarded_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 
     user: Mapped[User] = relationship(back_populates="profile")
 
@@ -126,7 +126,7 @@ class Block(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     blocker_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     blocked_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class FriendRequest(Base):
@@ -137,8 +137,8 @@ class FriendRequest(Base):
             "uq_friend_requests_pending_pair",
             "pair_key",
             unique=True,
-            postgresql_where="status = 'pending'",
-            sqlite_where="status = 'pending'",
+            postgresql_where=text("status = 'pending'"),
+            sqlite_where=text("status = 'pending'"),
         ),
     )
 
@@ -148,8 +148,8 @@ class FriendRequest(Base):
     pair_key: Mapped[str] = mapped_column(String(80))
     status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | accepted | declined | cancelled
     source: Mapped[str | None] = mapped_column(String(20))  # profile | icebreaker | room
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    responded_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 
 
 class Friendship(Base):
@@ -164,8 +164,8 @@ class Friendship(Base):
     points: Mapped[int] = mapped_column(Integer, default=0)
     points_today: Mapped[int] = mapped_column(Integer, default=0)
     points_day: Mapped[date | None] = mapped_column(Date)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    last_interaction_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    last_interaction_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class PushToken(Base):
@@ -175,8 +175,8 @@ class PushToken(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     token: Mapped[str] = mapped_column(String(255), unique=True)
     platform: Mapped[str] = mapped_column(String(20), default="android")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class Notification(Base):
@@ -194,8 +194,8 @@ class Notification(Base):
     data: Mapped[dict] = mapped_column(JSON, default=dict)
     group_key: Mapped[str | None] = mapped_column(String(120), index=True)
     count: Mapped[int] = mapped_column(Integer, default=1)
-    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    read_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class Report(Base):
@@ -215,8 +215,8 @@ class Report(Base):
     reviewer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     reviewer_note: Mapped[str] = mapped_column(Text, default="")
     resolution: Mapped[str | None] = mapped_column(String(30))
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class ModerationAction(Base):
@@ -232,4 +232,4 @@ class ModerationAction(Base):
     report_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("reports.id", ondelete="SET NULL"))
     reason: Mapped[str] = mapped_column(Text, default="")
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)

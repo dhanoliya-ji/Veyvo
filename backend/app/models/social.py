@@ -1,10 +1,10 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Date, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database import Base, utcnow
+from app.core.database import Base, TZDateTime, utcnow
 
 
 class Conversation(Base):
@@ -13,8 +13,8 @@ class Conversation(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     # Direct conversations are unique per pair of users.
     pair_key: Mapped[str] = mapped_column(String(80), unique=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    last_message_at: Mapped[datetime | None] = mapped_column(TZDateTime(), index=True)
 
 
 class ConversationMember(Base):
@@ -22,9 +22,9 @@ class ConversationMember(Base):
 
     conversation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
-    last_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_read_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    cleared_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    joined_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class Message(Base):
@@ -40,8 +40,8 @@ class Message(Base):
     # Client-generated id so retries after a network drop never create duplicates.
     client_id: Mapped[str] = mapped_column(String(64))
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 
 
 class Community(Base):
@@ -56,7 +56,7 @@ class Community(Base):
     owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     rules: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(20), default="active")  # active | restricted
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class CommunityMember(Base):
@@ -66,8 +66,8 @@ class CommunityMember(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
     role: Mapped[str] = mapped_column(String(20), default="member")  # owner | moderator | member
     status: Mapped[str] = mapped_column(String(20), default="active")  # active | pending | banned
-    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    joined_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class CommunityPost(Base):
@@ -78,8 +78,8 @@ class CommunityPost(Base):
     community_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("communities.id", ondelete="CASCADE"))
     author_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    removed_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 
 
 class Room(Base):
@@ -100,10 +100,10 @@ class Room(Base):
     status: Mapped[str] = mapped_column(String(20), default="live")  # scheduled | live | ended
     open_mic: Mapped[bool] = mapped_column(default=True)
     timer: Mapped[dict] = mapped_column(JSON, default=dict)
-    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    scheduled_for: Mapped[datetime | None] = mapped_column(TZDateTime(), index=True)
+    started_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    ended_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class RoomMember(Base):
@@ -117,8 +117,8 @@ class RoomMember(Base):
     banned: Mapped[bool] = mapped_column(default=False)
     hand_raised: Mapped[bool] = mapped_column(default=False)
     muted_by_host: Mapped[bool] = mapped_column(default=False)
-    first_joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    last_joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_joined_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    last_joined_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 
 
 class RoomMessage(Base):
@@ -131,8 +131,8 @@ class RoomMessage(Base):
     room_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"))
     sender_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    removed_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 
 
 class GameSession(Base):
@@ -148,9 +148,9 @@ class GameSession(Base):
     state: Mapped[dict] = mapped_column(JSON, default=dict)
     settings: Mapped[dict] = mapped_column(JSON, default=dict)
     version: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    ended_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 
 
 class GamePlayer(Base):
@@ -160,7 +160,7 @@ class GamePlayer(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
     score: Mapped[int] = mapped_column(Integer, default=0)
     active: Mapped[bool] = mapped_column(default=True)
-    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    joined_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class GameSubmission(Base):
@@ -175,7 +175,7 @@ class GameSubmission(Base):
     answer: Mapped[str] = mapped_column(String(120))
     is_correct: Mapped[bool] = mapped_column(default=False)
     points: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class IcebreakerSession(Base):
@@ -189,8 +189,8 @@ class IcebreakerSession(Base):
     answers: Mapped[dict] = mapped_column(JSON, default=dict)  # {user_id: [answer, ...]}
     decisions: Mapped[dict] = mapped_column(JSON, default=dict)  # {user_id: "connect" | "pass"}
     status: Mapped[str] = mapped_column(String(20), default="active")  # active | connected | ended
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(TZDateTime())
 
 
 class DailyAnswer(Base):
@@ -202,7 +202,7 @@ class DailyAnswer(Base):
     day: Mapped[date] = mapped_column(Date)
     question_key: Mapped[str] = mapped_column(String(40))
     choice: Mapped[int] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class Kudos(Base):
@@ -215,7 +215,7 @@ class Kudos(Base):
     receiver_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     tag: Mapped[str] = mapped_column(String(20))
     day: Mapped[date] = mapped_column(Date)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class GemTransaction(Base):
@@ -228,7 +228,7 @@ class GemTransaction(Base):
     amount: Mapped[int] = mapped_column(Integer)
     reason: Mapped[str] = mapped_column(String(40))
     idempotency_key: Mapped[str] = mapped_column(String(120), unique=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class QuestProgress(Base):
@@ -239,8 +239,8 @@ class QuestProgress(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     quest_key: Mapped[str] = mapped_column(String(40))
     progress: Mapped[int] = mapped_column(Integer, default=0)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    claimed_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 
 
 class OwnedItem(Base):
@@ -250,7 +250,7 @@ class OwnedItem(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     item_key: Mapped[str] = mapped_column(String(40))
-    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    acquired_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
 
 
 class MaintenanceMarker(Base):
@@ -260,4 +260,4 @@ class MaintenanceMarker(Base):
 
     key: Mapped[str] = mapped_column(String(40), primary_key=True)
     value: Mapped[str] = mapped_column(Text, default="")
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
