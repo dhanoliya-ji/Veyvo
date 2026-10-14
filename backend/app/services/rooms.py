@@ -147,9 +147,16 @@ def _can_moderate(room: Room, member: RoomMember | None, user: User) -> bool:
 
 
 def _can_speak(room: Room, member: RoomMember | None, user: User) -> bool:
-    if room.format != "voice" or member is None or member.muted_by_host:
+    if room.format not in ("voice", "video") or member is None or member.muted_by_host:
         return False
     return room.host_id == user.id or member.role in ("host", "moderator", "speaker") or room.open_mic
+
+
+def _can_video(room: Room, member: RoomMember | None, user: User) -> bool:
+    """Camera with strangers requires selfie verification. Friend calls only require being invited."""
+    if room.format != "video" or member is None or member.camera_blocked or not _can_speak(room, member, user):
+        return False
+    return room.kind == "call" or user.profile.verified_at is not None
 
 
 # ----- Views -----
@@ -210,6 +217,7 @@ async def room_detail(db: AsyncSession, room: Room, user: User) -> RoomDetail:
                 role=m.role if m else "listener",
                 hand_raised=bool(m and m.hand_raised),
                 muted_by_host=bool(m and m.muted_by_host),
+                camera_blocked=bool(m and m.camera_blocked),
                 is_friend=uid in friends,
             )
         )
@@ -220,6 +228,8 @@ async def room_detail(db: AsyncSession, room: Room, user: User) -> RoomDetail:
         participants=participants,
         rules=ROOM_RULES,
         can_speak=_can_speak(room, member, user),
+        can_video=_can_video(room, member, user),
+        video_requires_verification=room.format == "video" and room.kind != "call" and user.profile.verified_at is None,
         can_moderate=_can_moderate(room, member, user),
         media_available=get_settings().media_configured,
     )
@@ -301,6 +311,7 @@ async def list_rooms(
 
     stmt = select(Room).where(
         Room.status == status,
+        Room.kind != "call",  # friend calls never show up in listings
         or_(Room.visibility == "public", Room.id.in_(my_rooms)),
         Room.id.not_in(banned_rooms),
         or_(Room.community_id.is_(None), Room.community_id.not_in(private_communities), Room.community_id.in_(my_communities)),
@@ -427,6 +438,9 @@ async def leave_room(db: AsyncSession, user: User, room_id: uuid.UUID) -> None:
     if changed:
         await db.commit()
     await publish(f"room:{room_id}", "room.participant_left", {"room_id": str(room_id), "user_id": str(user.id)})
+    room = await db.get(Room, room_id)
+    if room and room.kind == "call" and room.status == "live" and not await present_ids(room_id):
+        await end_room(db, room, reason="call_ended")
 
 
 async def end_room(db: AsyncSession, room: Room, *, reason: str = "ended_by_host") -> None:
@@ -480,6 +494,10 @@ async def moderate(db: AsyncSession, actor: User, room: Room, target_id: uuid.UU
         target.muted_by_host = True
     elif action == "unmute":
         target.muted_by_host = False
+    elif action == "camera_off":
+        target.camera_blocked = True
+    elif action == "camera_on":
+        target.camera_blocked = False
     elif action == "lower_hand":
         target.hand_raised = False
     elif action in ("remove", "ban"):
@@ -501,6 +519,7 @@ async def moderate(db: AsyncSession, actor: User, room: Room, target_id: uuid.UU
             "muted_by_host": target.muted_by_host,
             "hand_raised": target.hand_raised,
             "can_speak": can_speak,
+            "camera_blocked": target.camera_blocked,
         },
     )
     if action in ("remove", "ban"):
@@ -508,8 +527,9 @@ async def moderate(db: AsyncSession, actor: User, room: Room, target_id: uuid.UU
         await _media_remove(room.id, target_id)
     elif action in ("mute", "make_listener"):
         await _media_set_publish(room.id, target_id, False)
-    elif action in ("unmute", "make_speaker", "make_moderator"):
-        await _media_set_publish(room.id, target_id, can_speak)
+    elif action in ("unmute", "make_speaker", "make_moderator", "camera_off", "camera_on"):
+        target_user = await db.get(User, target_id)
+        await _media_set_publish(room.id, target_id, can_speak, camera=bool(target_user and _can_video(room, target, target_user)))
 
 
 async def set_hand(db: AsyncSession, user: User, room: Room, raised: bool) -> None:
@@ -638,12 +658,13 @@ async def media_token(db: AsyncSession, user: User, room: Room) -> MediaTokenOut
     settings = get_settings()
     if not settings.media_configured:
         raise ServiceUnavailable("Voice isn't set up on this server yet. You can still chat in the room.", code="media_unavailable")
-    if room.format != "voice":
+    if room.format not in ("voice", "video"):
         raise AppError("This is a text-only hangout.", code="not_voice_room")
     if room.status != "live":
         raise AppError("This hangout isn't live.", code="room_not_live", status_code=409)
     member = await _require_present(db, room, user)
     can_publish = _can_speak(room, member, user)
+    can_video = _can_video(room, member, user)
     from livekit import api as lk
 
     ttl = 600
@@ -659,12 +680,12 @@ async def media_token(db: AsyncSession, user: User, room: Room) -> MediaTokenOut
                 can_publish=can_publish,
                 can_subscribe=True,
                 can_publish_data=True,
-                can_publish_sources=["microphone"],
+                can_publish_sources=["microphone", "camera"] if can_video else ["microphone"],
             )
         )
         .to_jwt()
     )
-    return MediaTokenOut(url=settings.livekit_url, token=token, can_publish=can_publish, expires_in=ttl)
+    return MediaTokenOut(url=settings.livekit_url, token=token, can_publish=can_publish, can_publish_video=can_video, expires_in=ttl)
 
 
 async def _livekit_call(fn_name: str, request) -> None:
@@ -686,15 +707,18 @@ async def _media_remove(room_id: uuid.UUID, user_id: uuid.UUID) -> None:
     await _livekit_call("remove_participant", lk.RoomParticipantIdentity(room=str(room_id), identity=str(user_id)))
 
 
-async def _media_set_publish(room_id: uuid.UUID, user_id: uuid.UUID, can_publish: bool) -> None:
+async def _media_set_publish(room_id: uuid.UUID, user_id: uuid.UUID, can_publish: bool, camera: bool = False) -> None:
     from livekit import api as lk
 
+    sources = [lk.TrackSource.MICROPHONE] + ([lk.TrackSource.CAMERA] if camera else [])
     await _livekit_call(
         "update_participant",
         lk.UpdateParticipantRequest(
             room=str(room_id),
             identity=str(user_id),
-            permission=lk.ParticipantPermission(can_subscribe=True, can_publish=can_publish, can_publish_data=True),
+            permission=lk.ParticipantPermission(
+                can_subscribe=True, can_publish=can_publish, can_publish_data=True, can_publish_sources=sources
+            ),
         ),
     )
 

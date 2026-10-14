@@ -130,7 +130,7 @@ class RoomIn(ApiModel):
     title: SingleLine = Field(min_length=3, max_length=80)
     description: CleanText = Field(default="", max_length=500)
     kind: Literal["hangout", "study"] = "hangout"
-    format: Literal["text", "voice"] = "voice"
+    format: Literal["text", "voice", "video"] = "voice"
     visibility: Literal["public", "private"] = "public"
     scene: str = "cafe"
     interest_id: int | None = None
@@ -174,6 +174,7 @@ class ParticipantOut(UserSummary):
     role: str
     hand_raised: bool
     muted_by_host: bool
+    camera_blocked: bool = False
     is_friend: bool = False
 
 
@@ -181,6 +182,9 @@ class RoomDetail(RoomOut):
     participants: list[ParticipantOut]
     rules: list[str]
     can_speak: bool
+    # Camera needs a video room, not being blocked by the host, and selfie verification (except in friend calls).
+    can_video: bool = False
+    video_requires_verification: bool = False
     can_moderate: bool
     media_available: bool
 
@@ -199,7 +203,9 @@ class RoomMessageOut(ApiModel):
 
 class ModerateParticipantIn(ApiModel):
     user_id: uuid.UUID
-    action: Literal["make_speaker", "make_listener", "make_moderator", "mute", "unmute", "remove", "ban", "lower_hand"]
+    action: Literal[
+        "make_speaker", "make_listener", "make_moderator", "mute", "unmute", "remove", "ban", "lower_hand", "camera_off", "camera_on"
+    ]
 
 
 class ReactionIn(ApiModel):
@@ -227,6 +233,7 @@ class MediaTokenOut(ApiModel):
     url: str
     token: str
     can_publish: bool
+    can_publish_video: bool = False
     expires_in: int
 
 

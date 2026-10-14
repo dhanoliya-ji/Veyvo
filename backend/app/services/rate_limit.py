@@ -30,6 +30,7 @@ LIMITS: dict[str, tuple[int, int]] = {
     "post": (10, 600),
     "purchase": (30, 3600),
     "photo_upload": (20, 3600),
+    "call": (30, 3600),
     "verification": (5, 86400),
     "ad_reward": (20, 3600),
 }

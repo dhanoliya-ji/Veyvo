@@ -135,6 +135,7 @@ class RoomMember(Base):
     banned: Mapped[bool] = mapped_column(default=False)
     hand_raised: Mapped[bool] = mapped_column(default=False)
     muted_by_host: Mapped[bool] = mapped_column(default=False)
+    camera_blocked: Mapped[bool] = mapped_column(default=False, server_default="0")
     first_joined_at: Mapped[datetime | None] = mapped_column(TZDateTime())
     last_joined_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 

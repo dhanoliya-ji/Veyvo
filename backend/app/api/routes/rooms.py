@@ -4,7 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, Query
 
 from app.api.dependencies import DB, ActiveUser
-from app.schemas.common import Ok
+from app.schemas.common import ApiModel, Ok
 from app.schemas.social import (
     InviteIn,
     MediaTokenOut,
@@ -23,6 +23,26 @@ from app.services import rooms
 from app.services.rate_limit import hit
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
+
+
+class CallIn(ApiModel):
+    user_id: uuid.UUID
+
+
+@router.post("/calls", response_model=RoomDetail, status_code=201)
+async def start_call(body: CallIn, user: ActiveUser, db: DB):
+    from app.services import calls
+
+    await hit("call", str(user.id))
+    return await calls.start_call(db, user, body.user_id)
+
+
+@router.post("/calls/{room_id}/decline", response_model=Ok)
+async def decline_call(room_id: uuid.UUID, user: ActiveUser, db: DB):
+    from app.services import calls
+
+    await calls.decline_call(db, user, room_id)
+    return Ok()
 
 
 @router.get("", response_model=list[RoomOut])
