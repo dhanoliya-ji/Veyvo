@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import Field, field_validator
 
-from app.content.catalog import AVATAR_OPTIONS, VIBES, item_for_value
+from app.content.catalog import VIBES
 from app.schemas.common import ApiModel, CleanText, SingleLine, UserSummary
 
 USERNAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9_.]{1,22})[a-z0-9]$")
@@ -40,38 +40,10 @@ def normalize_username(value: str) -> str:
     return value
 
 
-class AvatarConfig(ApiModel):
-    skin: str
-    hair: str
-    hairColor: str
-    eyes: str
-    brows: str = "soft"
-    mouth: str
-    outfit: str
-    outfitColor: str
-    accessory: str = "none"
-    bg: str
-
-    @field_validator("skin", "hairColor", "outfitColor", "bg")
-    @classmethod
-    def _color(cls, v: str, info) -> str:
-        if v not in AVATAR_OPTIONS[info.field_name]:
-            raise ValueError("Unsupported color.")
-        return v
-
-    @field_validator("eyes", "brows", "mouth")
-    @classmethod
-    def _feature(cls, v: str, info) -> str:
-        if v not in AVATAR_OPTIONS[info.field_name]:
-            raise ValueError("Unsupported option.")
-        return v
-
-    @field_validator("hair", "outfit", "accessory")
-    @classmethod
-    def _item(cls, v: str, info) -> str:
-        if item_for_value(info.field_name, v) is None:
-            raise ValueError("Unsupported option.")
-        return v
+class GameThemeIn(ApiModel):
+    chess_board: str | None = None
+    card_back: str | None = None
+    ludo_board: str | None = None
 
 
 class PrivacyOut(ApiModel):
@@ -143,6 +115,7 @@ class MeOut(ApiModel):
     privacy: PrivacyOut
     onboarded: bool
     plus_active: bool = False
+    game_theme: dict = {}
     xp: int
     level: int
     level_progress: float
@@ -175,7 +148,7 @@ class OnboardingIn(ApiModel):
     username: str
     display_name: SingleLine = Field(min_length=1, max_length=40)
     bio: CleanText = Field(default="", max_length=300)
-    avatar: AvatarConfig
+    avatar: dict | None = None  # legacy field from older app versions; ignored
     interest_ids: list[int] = Field(min_length=3, max_length=12)
     privacy: PrivacyUpdate | None = None
 

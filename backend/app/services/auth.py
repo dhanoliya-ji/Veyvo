@@ -4,7 +4,6 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.content.catalog import DEFAULT_AVATAR
 from app.core.config import get_settings
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden, Unauthorized
@@ -72,7 +71,7 @@ async def register(db: AsyncSession, email: str, password: str, birth_date: date
         raise Conflict("An account with this email already exists. Try signing in instead.", code="email_taken")
 
     user = User(email=email, password_hash=hash_password(password), adult_attested_at=utcnow())
-    user.profile = Profile(avatar=dict(DEFAULT_AVATAR))
+    user.profile = Profile(avatar={})
     user.privacy = PrivacySettings(notification_prefs={})
     db.add(user)
     await db.flush()

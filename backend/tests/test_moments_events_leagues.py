@@ -158,18 +158,7 @@ async def test_moment_retention_export_and_deletion(client):
 
 
 # ----- Seasonal events -----
-SCARF_AVATAR = {
-    "skin": "#E0AC69",
-    "hair": "curlyTop",
-    "hairColor": "#1F1A17",
-    "eyes": "round",
-    "brows": "soft",
-    "mouth": "smile",
-    "outfit": "hoodie",
-    "outfitColor": "#9385FF",
-    "accessory": "scarf",
-    "bg": "#2A2650",
-}
+COZY_THEME = {"card_back": "cozy"}
 
 
 async def test_event_progress_claim_is_idempotent(client, monkeypatch):
@@ -179,14 +168,14 @@ async def test_event_progress_claim_is_idempotent(client, monkeypatch):
     current = (await client.get("/events/current", headers=a["headers"])).json()
     assert current["key"] == "cozy_season"
     assert current["ends_at"].startswith("2026-12-01T00:00:00")
-    assert current["item"]["key"] == "acc_scarf"
+    assert current["item"]["key"] == "cards_cozy"
     assert current["quest"]["progress"] == 0 and not current["quest"]["completed"]
 
     # Event-only: not sold, not wearable until earned.
     shop = (await client.get("/shop", headers=a["headers"])).json()
-    assert "acc_scarf" not in {i["key"] for i in shop}
-    assert (await client.post("/shop/acc_scarf/buy", headers=a["headers"])).status_code == 403
-    assert (await client.put("/me/avatar", json=SCARF_AVATAR, headers=a["headers"])).status_code == 403
+    assert "cards_cozy" not in {i["key"] for i in shop}
+    assert (await client.post("/shop/cards_cozy/buy", headers=a["headers"])).status_code == 403
+    assert (await client.put("/me/game-theme", json=COZY_THEME, headers=a["headers"])).status_code == 403
     assert (await client.post("/events/cozy_season/claim", headers=a["headers"])).status_code == 409
     assert (await client.post("/events/nope/claim", headers=a["headers"])).status_code == 404
 
@@ -200,7 +189,7 @@ async def test_event_progress_claim_is_idempotent(client, monkeypatch):
 
     gems_before = (await client.get("/me", headers=a["headers"])).json()["gems"]
     first = (await client.post("/events/cozy_season/claim", headers=a["headers"])).json()
-    assert first["already_claimed"] is False and first["item_key"] == "acc_scarf"
+    assert first["already_claimed"] is False and first["item_key"] == "cards_cozy"
     assert first["new_balance"] == gems_before + 100
     second = await client.post("/events/cozy_season/claim", headers=a["headers"])
     assert second.status_code == 200 and second.json()["already_claimed"] is True
@@ -209,8 +198,8 @@ async def test_event_progress_claim_is_idempotent(client, monkeypatch):
         assert await db.scalar(select(func.count()).select_from(OwnedItem).where(OwnedItem.user_id == uid)) == 1
 
     shop = {i["key"]: i for i in (await client.get("/shop", headers=a["headers"])).json()}
-    assert shop["acc_scarf"]["owned"] and shop["acc_scarf"]["event_only"]
-    assert (await client.put("/me/avatar", json=SCARF_AVATAR, headers=a["headers"])).status_code == 200
+    assert shop["cards_cozy"]["owned"] and shop["cards_cozy"]["event_only"]
+    assert (await client.put("/me/game-theme", json=COZY_THEME, headers=a["headers"])).status_code == 200
 
 
 async def test_event_windows_are_fixed(client, monkeypatch):

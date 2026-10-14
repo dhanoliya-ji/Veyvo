@@ -4,12 +4,11 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.content.catalog import KUDOS_TAGS, item_for_value, requires_ownership
+from app.content.catalog import DEFAULT_GAME_THEME, KUDOS_TAGS, item_for_value, requires_ownership
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden
 from app.models import Interest, Kudos, OwnedItem, PrivacySettings, Profile, User, UserInterest
 from app.schemas.profile import (
-    AvatarConfig,
     InterestOut,
     MeOut,
     PrivacyOut,
@@ -64,6 +63,7 @@ async def build_me(db: AsyncSession, user: User) -> MeOut:
         interests=[InterestOut.model_validate(i) for i in interests],
         privacy=PrivacyOut.model_validate(privacy),
         onboarded=profile.onboarded_at is not None,
+        game_theme={**DEFAULT_GAME_THEME, **(profile.game_theme or {})},
         plus_active=bool(profile.plus_until and profile.plus_until > utcnow()),
         xp=profile.xp,
         level=level_for_xp(profile.xp),
@@ -84,14 +84,21 @@ async def owned_values(db: AsyncSession, user_id: uuid.UUID) -> set[str]:
     return set(await db.scalars(select(OwnedItem.item_key).where(OwnedItem.user_id == user_id)))
 
 
-async def validate_avatar_ownership(db: AsyncSession, user_id: uuid.UUID, avatar: AvatarConfig) -> None:
-    owned = await owned_values(db, user_id)
-    for slot in ("hair", "outfit", "accessory"):
-        item = item_for_value(slot, getattr(avatar, slot))
-        if item and requires_ownership(item) and item["key"] not in owned:
-            if item.get("event_only"):
-                raise Forbidden(f"“{item['name']}” is an event reward. Earn it during the event to wear it.", code="item_locked")
+async def set_game_theme(db: AsyncSession, profile: Profile, choice: dict) -> dict:
+    """Apply chosen game themes. Free themes are always allowed; paid and event themes must be owned."""
+    owned = await owned_values(db, profile.user_id)
+    theme = {**DEFAULT_GAME_THEME, **(profile.game_theme or {})}
+    for slot, value in choice.items():
+        if value is None:
+            continue
+        item = item_for_value(slot, value)
+        if item is None:
+            raise AppError("Unknown theme.", code="invalid_theme", status_code=422)
+        if requires_ownership(item) and item["key"] not in owned:
             raise Forbidden(f"Unlock “{item['name']}” in the shop first.", code="item_locked")
+        theme[slot] = value
+    profile.game_theme = theme
+    return theme
 
 
 async def set_interests(db: AsyncSession, user_id: uuid.UUID, interest_ids: list[int]) -> None:

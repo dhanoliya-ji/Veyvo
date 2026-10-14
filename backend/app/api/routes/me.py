@@ -8,7 +8,7 @@ from app.models import Interest, PushToken
 from app.schemas.auth import DeleteAccountIn
 from app.schemas.common import Ok
 from app.schemas.profile import (
-    AvatarConfig,
+    GameThemeIn,
     InterestOut,
     InterestsUpdate,
     MeOut,
@@ -53,10 +53,8 @@ async def onboarding(body: OnboardingIn, user: CurrentUser, db: DB):
         raise Forbidden("Please verify your email first.", code="email_unverified")
     profile = user.profile
     await profiles.set_username(db, profile, body.username)
-    await profiles.validate_avatar_ownership(db, user.id, body.avatar)
     profile.display_name = body.display_name
     profile.bio = body.bio
-    profile.avatar = body.avatar.model_dump()
     await profiles.set_interests(db, user.id, body.interest_ids)
     if body.privacy:
         profiles.apply_privacy(user.privacy, body.privacy)
@@ -86,11 +84,9 @@ async def update_profile(body: ProfileUpdate, user: ActiveUser, db: DB):
     return await profiles.build_me(db, user)
 
 
-@router.put("/me/avatar", response_model=MeOut)
-async def update_avatar(body: AvatarConfig, user: ActiveUser, db: DB):
-    await profiles.validate_avatar_ownership(db, user.id, body)
-    user.profile.avatar = body.model_dump()
-    await rewards.track(db, user.id, "avatar_saved")
+@router.put("/me/game-theme", response_model=MeOut)
+async def update_game_theme(body: GameThemeIn, user: ActiveUser, db: DB):
+    await profiles.set_game_theme(db, user.profile, body.model_dump(exclude_none=True))
     await db.commit()
     return await profiles.build_me(db, user)
 

@@ -81,23 +81,26 @@ async def test_daily_question_once_and_results_after_answer(client):
 async def test_quests_claim_once_and_shop(client):
     a = await make_user(client)
     quests = {q["key"]: q for q in (await client.get("/quests", headers=a["headers"])).json()}
-    assert quests["create_avatar"]["completed"] is True  # endowed progress
+    assert quests["add_photo"]["completed"] is True  # endowed progress
     assert quests["pick_interests"]["completed"] is True
     gems_before = (await client.get("/me", headers=a["headers"])).json()["gems"]
-    r = await client.post("/quests/create_avatar/claim", headers=a["headers"])
+    r = await client.post("/quests/add_photo/claim", headers=a["headers"])
     assert r.status_code == 200
     assert r.json()["new_balance"] == gems_before + 20
-    assert (await client.post("/quests/create_avatar/claim", headers=a["headers"])).status_code == 409
+    assert (await client.post("/quests/add_photo/claim", headers=a["headers"])).status_code == 409
     assert (await client.post("/quests/join_room/claim", headers=a["headers"])).status_code == 409  # not done
 
     shop = {i["key"]: i for i in (await client.get("/shop", headers=a["headers"])).json()}
-    assert shop["acc_cap"]["owned"] is False
-    r = await client.post("/shop/acc_cap/buy", headers=a["headers"])
+    assert shop["cards_crimson"]["owned"] is False
+    # Locked themes can't be applied until bought.
+    assert (await client.put("/me/game-theme", json={"card_back": "crimson"}, headers=a["headers"])).status_code == 403
+    r = await client.post("/shop/cards_crimson/buy", headers=a["headers"])
     assert r.status_code == 200
-    assert (await client.post("/shop/acc_cap/buy", headers=a["headers"])).status_code == 409
-    assert (await client.post("/shop/acc_crown/buy", headers=a["headers"])).status_code == 402  # can't afford
-    avatar = (await client.get("/me", headers=a["headers"])).json()["avatar"]
-    assert (await client.put("/me/avatar", json={**avatar, "accessory": "cap"}, headers=a["headers"])).status_code == 200
+    assert (await client.post("/shop/cards_crimson/buy", headers=a["headers"])).status_code == 409
+    assert (await client.post("/shop/cards_gold/buy", headers=a["headers"])).status_code == 402  # can't afford
+    me = (await client.put("/me/game-theme", json={"card_back": "crimson", "chess_board": "walnut"}, headers=a["headers"])).json()
+    assert me["game_theme"]["card_back"] == "crimson" and me["game_theme"]["chess_board"] == "walnut"
+    assert (await client.put("/me/game-theme", json={"chess_board": "lava"}, headers=a["headers"])).status_code == 422
 
 
 async def test_kudos_rules(client):

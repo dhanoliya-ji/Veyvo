@@ -49,7 +49,7 @@ INTERESTS: list[dict] = [
 
 SCENES = ["cafe", "campfire", "library", "rooftop", "beach", "space"]
 # Scenes that are free for everyone; the rest are unlocked from the shop.
-FREE_SCENES = {"cafe", "campfire", "library", "rooftop"}
+FREE_SCENES = set(SCENES)  # legacy room backdrops are no longer sold
 
 ROOM_CATEGORIES = [
     "just-chatting",
@@ -93,7 +93,7 @@ REPORT_REASONS = {
 
 # First-week quests. `target` is how many times the tracked event must happen.
 QUESTS: list[dict] = [
-    {"key": "create_avatar", "title": "Make your avatar", "event": "avatar_saved", "target": 1, "gems": 20, "xp": 20},
+    {"key": "add_photo", "title": "Add your profile photo", "event": "photo_added", "target": 1, "gems": 20, "xp": 20},
     {"key": "pick_interests", "title": "Pick 3 interests", "event": "interests_saved", "target": 1, "gems": 20, "xp": 20},
     {"key": "join_room", "title": "Join a hangout", "event": "room_joined", "target": 1, "gems": 30, "xp": 30},
     {"key": "daily_question", "title": "Answer the Daily Question", "event": "daily_answered", "target": 1, "gems": 15, "xp": 15},
@@ -104,41 +104,26 @@ QUESTS: list[dict] = [
 ]
 QUESTS_BY_KEY = {q["key"]: q for q in QUESTS}
 # Endowed progress: new accounts start with this quest already complete.
-STARTER_COMPLETED_QUEST = "create_avatar"
+STARTER_COMPLETED_QUEST = "add_photo"
 
-# Cosmetic catalog. `slot` maps to an avatar field; scenes unlock room backdrops.
-# Prices are in gems, which in v1 can only be earned (no real-money purchase yet).
+# Game themes bought with gems (gems are earned in-app, or bought via Google Play).
+# Slots map to the game they style. `event_only` items can only be earned during an event.
 COSMETICS: list[dict] = [
-    {"key": "hair_curly_top", "slot": "hair", "value": "curlyTop", "name": "Curly top", "price": 0},
-    {"key": "hair_bob", "slot": "hair", "value": "bob", "name": "Bob", "price": 0},
-    {"key": "hair_short", "slot": "hair", "value": "short", "name": "Short", "price": 0},
-    {"key": "hair_long", "slot": "hair", "value": "long", "name": "Long", "price": 0},
-    {"key": "hair_bun", "slot": "hair", "value": "bun", "name": "Top bun", "price": 0},
-    {"key": "hair_buzz", "slot": "hair", "value": "buzz", "name": "Buzz", "price": 0},
-    {"key": "hair_afro", "slot": "hair", "value": "afro", "name": "Afro", "price": 0},
-    {"key": "hair_braids", "slot": "hair", "value": "braids", "name": "Braids", "price": 0},
-    {"key": "hair_spiky", "slot": "hair", "value": "spiky", "name": "Spiky", "price": 60},
-    {"key": "hair_mohawk", "slot": "hair", "value": "mohawk", "name": "Mohawk", "price": 90},
-    {"key": "outfit_tee", "slot": "outfit", "value": "tee", "name": "T-shirt", "price": 0},
-    {"key": "outfit_hoodie", "slot": "outfit", "value": "hoodie", "name": "Hoodie", "price": 0},
-    {"key": "outfit_collar", "slot": "outfit", "value": "collar", "name": "Collared shirt", "price": 0},
-    {"key": "outfit_sweater", "slot": "outfit", "value": "sweater", "name": "Sweater", "price": 0},
-    {"key": "outfit_jacket", "slot": "outfit", "value": "jacket", "name": "Varsity jacket", "price": 80},
-    {"key": "outfit_overalls", "slot": "outfit", "value": "overalls", "name": "Overalls", "price": 70},
-    {"key": "outfit_star", "slot": "outfit", "value": "star", "name": "Star tee", "price": 120},
-    {"key": "acc_none", "slot": "accessory", "value": "none", "name": "None", "price": 0},
-    {"key": "acc_glasses", "slot": "accessory", "value": "glasses", "name": "Round glasses", "price": 0},
-    {"key": "acc_headphones", "slot": "accessory", "value": "headphones", "name": "Headphones", "price": 0},
-    {"key": "acc_cap", "slot": "accessory", "value": "cap", "name": "Cap", "price": 40},
-    {"key": "acc_beanie", "slot": "accessory", "value": "beanie", "name": "Beanie", "price": 50},
-    {"key": "acc_sunglasses", "slot": "accessory", "value": "sunglasses", "name": "Sunglasses", "price": 60},
-    {"key": "acc_flower", "slot": "accessory", "value": "flower", "name": "Flower clip", "price": 50},
-    {"key": "acc_crown", "slot": "accessory", "value": "crown", "name": "Tiny crown", "price": 200},
-    # Event-only: earned by completing the Cozy Season event quest. Never sold; you must own it to wear it.
-    {"key": "acc_scarf", "slot": "accessory", "value": "scarf", "name": "Cozy scarf", "price": 0, "event_only": True},
-    {"key": "scene_beach", "slot": "scene", "value": "beach", "name": "Beach at dusk", "price": 150},
-    {"key": "scene_space", "slot": "scene", "value": "space", "name": "Space station", "price": 250},
+    {"key": "chess_classic", "slot": "chess_board", "value": "classic", "name": "Classic green", "price": 0},
+    {"key": "chess_walnut", "slot": "chess_board", "value": "walnut", "name": "Walnut wood", "price": 0},
+    {"key": "chess_marble", "slot": "chess_board", "value": "marble", "name": "Marble", "price": 80},
+    {"key": "chess_ocean", "slot": "chess_board", "value": "ocean", "name": "Ocean blue", "price": 80},
+    {"key": "chess_midnight", "slot": "chess_board", "value": "midnight", "name": "Midnight", "price": 120},
+    {"key": "cards_navy", "slot": "card_back", "value": "navy", "name": "Navy lattice", "price": 0},
+    {"key": "cards_crimson", "slot": "card_back", "value": "crimson", "name": "Crimson", "price": 40},
+    {"key": "cards_emerald", "slot": "card_back", "value": "emerald", "name": "Emerald", "price": 60},
+    {"key": "cards_gold", "slot": "card_back", "value": "gold", "name": "Gold foil", "price": 150},
+    {"key": "cards_cozy", "slot": "card_back", "value": "cozy", "name": "Cozy knit", "price": 0, "event_only": True},
+    {"key": "ludo_classic", "slot": "ludo_board", "value": "classic", "name": "Classic", "price": 0},
+    {"key": "ludo_pastel", "slot": "ludo_board", "value": "pastel", "name": "Pastel", "price": 60},
+    {"key": "ludo_royal", "slot": "ludo_board", "value": "royal", "name": "Royal", "price": 100},
 ]
+DEFAULT_GAME_THEME = {"chess_board": "classic", "card_back": "navy", "ludo_board": "classic"}
 COSMETICS_BY_KEY = {c["key"]: c for c in COSMETICS}
 
 

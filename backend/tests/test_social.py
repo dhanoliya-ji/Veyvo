@@ -16,14 +16,6 @@ async def test_profile_update_and_username_uniqueness(client):
     assert me["vibe"] == "gaming"
 
 
-async def test_locked_avatar_items_require_purchase(client):
-    a = await make_user(client)
-    avatar = (await client.get("/me", headers=a["headers"])).json()["avatar"]
-    r = await client.put("/me/avatar", json={**avatar, "accessory": "crown"}, headers=a["headers"])
-    assert r.status_code == 403
-    assert r.json()["error"]["code"] == "item_locked"
-
-
 async def test_public_profile_never_exposes_email(client):
     a = await make_user(client)
     b = await make_user(client)

@@ -21,8 +21,6 @@ async def test_create_validation(client):
     assert (await _create(client, host, title="  ")).status_code == 422
     assert (await _create(client, host, capacity=500)).status_code == 422
     assert (await _create(client, host, scene="volcano")).status_code == 422
-    r = await _create(client, host, scene="space")  # premium scene not owned
-    assert r.status_code == 403
 
 
 async def test_create_join_and_participants(client):

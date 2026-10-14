@@ -10,12 +10,12 @@ EVENTS: list[dict] = [
     {
         "key": "cozy_season",
         "name": "Cozy Season",
-        "description": "Blankets on, lights low. Play games with your people this autumn and earn the Cozy scarf, "
-        "an accessory you can only get during Cozy Season.",
+        "description": "Blankets on, lights low. Play games with your people this autumn and earn the Cozy knit card back, "
+        "a game theme you can only get during Cozy Season.",
         "starts_at": datetime(2026, 10, 14, tzinfo=UTC),
         "ends_at": datetime(2026, 12, 1, tzinfo=UTC),  # runs through 30 November (UTC)
         "accent": "#E8875B",
-        "item_key": "acc_scarf",
+        "item_key": "cards_cozy",
         "quest": {"key": "play_games", "title": "Play 5 games during Cozy Season", "event": "game_finished", "target": 5},
         "gems": 100,
         "xp": 50,

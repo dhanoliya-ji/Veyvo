@@ -139,6 +139,10 @@ async def upload(db: AsyncSession, user: User, data: bytes) -> dict:
     db.add(photo)
     await db.flush()
     await refresh_primary(db, user.id)
+    if status == "approved":
+        from app.services import rewards
+
+        await rewards.track(db, user.id, "photo_added")
     await db.commit()
     if status == "rejected":
         get_storage().delete(key)

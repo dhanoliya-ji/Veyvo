@@ -68,7 +68,8 @@ class Profile(TimestampMixin, Base):
     username: Mapped[str | None] = mapped_column(String(24), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(40), default="")
     bio: Mapped[str] = mapped_column(String(300), default="")
-    avatar: Mapped[dict] = mapped_column(JSON, default=dict)
+    avatar: Mapped[dict] = mapped_column(JSON, default=dict)  # legacy, unused
+    game_theme: Mapped[dict] = mapped_column(JSON, default=dict)
     vibe: Mapped[str | None] = mapped_column(String(20))  # down_to_chat | studying | listening | gaming | busy
     xp: Mapped[int] = mapped_column(Integer, default=0)
     gems: Mapped[int] = mapped_column(Integer, default=0)
