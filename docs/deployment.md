@@ -80,3 +80,28 @@ eas build --profile production --platform android    # .aab for Play Store
 - 512×512 icon (replace `mobile/assets/icon.png` and the adaptive icon layers with the Veyvo mark)
 - Feature graphic 1024×500 and 4–8 phone screenshots (Home, a live room scene, Trivia, Doodle, Profile, Safety centre)
 - Short description (80 characters), for example: "Hang out with people who share your vibe — voice rooms, games and new friends."
+
+## 6. Money features (AdMob + Google Play Billing)
+
+Everything is server-verified. The app never grants gems or Plus by itself.
+
+### Rewarded ads (AdMob)
+1. Create an AdMob account → add an Android app (`app.veyvo`) → create a **Rewarded** ad unit.
+2. In `mobile/app.json`, replace the **test** `androidAppId` under the `react-native-google-mobile-ads` plugin with your real AdMob App ID.
+3. Set `EXPO_PUBLIC_ADMOB_REWARDED_ID=<your rewarded unit id>` in the production build env (`eas.json`). Without it, Google's test ad unit is used.
+4. In the AdMob ad unit settings, turn on **Server-side verification** with the callback URL `https://<api-host>/api/v1/ads/ssv`.
+5. Backend env: `ADMOB_ENABLED=true` (optionally `AD_REWARD_GEMS`, `AD_DAILY_REWARD_CAP`).
+6. Set up the GDPR/UK consent message in AdMob → *Privacy & messaging*. The app shows it automatically through Google's UMP SDK.
+
+In development (`APP_ENV=development`), Google can't reach your laptop, so the app uses a dev-only endpoint that stands in for the SSV callback. It's disabled in production.
+
+### Gem packs + Veyvo Plus (Google Play Billing)
+1. Play Console → your app → **Monetize → Products**:
+   - In-app products (consumable): `gems_100`, `gems_550`, `gems_1200`
+   - Subscription: `veyvo_plus_monthly` (one monthly base plan)
+2. Create a Google Cloud **service account**, enable the *Google Play Android Developer API*, then invite the service account in Play Console → *Users and permissions* with "View financial data" and "Manage orders and subscriptions".
+3. Backend env: `GOOGLE_PLAY_SERVICE_ACCOUNT=/path/to/key.json` (or the JSON itself) and `GOOGLE_PLAY_PACKAGE=app.veyvo`.
+4. Real-time Developer Notifications (renewals and cancellations): create a Pub/Sub topic, set it in Play Console → *Monetization setup*, and add a push subscription to `https://<api-host>/api/v1/billing/google/rtdn?token=<GOOGLE_RTDN_TOKEN>`.
+5. Purchases only work in builds installed from Play (internal testing track) with a licence-tester account.
+
+Purchase records are kept for accounting with the user link removed on account deletion (`user_id` set to null).

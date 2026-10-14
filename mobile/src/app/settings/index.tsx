@@ -73,7 +73,7 @@ export default function SettingsHome() {
 
         <ListGroup title="Account">
           <ListRow icon={KeyRound} title="Account & security" subtitle="Password, devices, your data, delete account" onPress={() => router.push('/settings/account')} />
-          <ListRow icon={Crown} iconTone="warning" title="Veyvo Plus" subtitle="Ad-free and extra perks" right={<Badge label="Coming soon" tone="warning" />} onPress={() => router.push('/shop')} />
+          <ListRow icon={Crown} iconTone="warning" title="Veyvo Plus" subtitle="Ad-free and extra perks" right={me.data?.plus_active ? <Badge label="Active" tone="success" /> : undefined} onPress={() => router.push('/plus')} />
         </ListGroup>
 
         <ListGroup title="About">

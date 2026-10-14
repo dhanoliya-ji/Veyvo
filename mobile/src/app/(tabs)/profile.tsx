@@ -115,6 +115,7 @@ export default function Profile() {
           ) : null}
           <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap', justifyContent: 'center' }}>
             {m?.vibe ? <Badge label={VIBE_LABELS[m.vibe] ?? m.vibe} tone="success" /> : null}
+            {m?.plus_active ? <Badge label="Plus" tone="primary" /> : null}
             {isStaff ? <Badge label={m?.role === 'admin' ? 'Admin' : 'Moderator'} tone="accent" /> : null}
           </View>
           {m?.bio ? (

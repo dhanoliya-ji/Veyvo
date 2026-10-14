@@ -15,6 +15,7 @@ import { Badge, Button, Card, ErrorState, Header, PressableScale, Screen, Sectio
 import { errorMessage } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { toast } from '@/stores/toast';
+import { GetGemsSection } from '@/components/monetization/GetGemsSection';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
 
@@ -166,40 +167,10 @@ export default function Shop() {
         <Button title="Games" icon={Gamepad2} variant="secondary" size="sm" onPress={() => router.push('/games')} style={{ flex: 1 }} />
       </View>
 
-      {/* Coming soon: never sells anything */}
-      <View style={{ marginTop: space.xl, gap: space.md }}>
-        <Card style={{ gap: space.sm }}>
-          <View style={styles.soonHead}>
-            <Gem size={20} color={colors.gold} />
-            <Text variant="heading" style={{ flex: 1 }}>
-              Get more gems
-            </Text>
-            <Badge label="Coming soon" tone="neutral" />
-          </View>
-          <Text tone="muted">
-            {config.data?.purchases_available ? 'Gem packs are on their way.' : 'Buying gem packs isn’t available yet.'} Nothing here can be bought right now — for now, gems are earned by playing, answering and hanging out.
-          </Text>
-          <Button title="Coming soon" variant="outline" disabled fullWidth accessibilityHint="Gem purchases are not available yet" />
-        </Card>
-        <Card style={{ gap: space.sm, borderColor: colors.primary }}>
-          <View style={styles.soonHead}>
-            <Crown size={20} color={colors.primary} />
-            <Text variant="heading" style={{ flex: 1 }}>
-              Veyvo Plus
-            </Text>
-            <Badge label="Coming soon" tone="primary" />
-          </View>
-          {['Ad-free, always', 'Monthly gem bonus', 'Exclusive avatar items', 'A little Plus badge on your profile'].map((perk) => (
-            <View key={perk} style={styles.perk}>
-              <Check size={14} color={colors.primary} strokeWidth={3} />
-              <Text variant="body">{perk}</Text>
-            </View>
-          ))}
-          <Text variant="caption" tone="muted">
-            A preview of what's planned. Safety tools and core features will always be free.
-          </Text>
-          <Button title="Coming soon" variant="outline" disabled fullWidth accessibilityHint="Veyvo Plus is not available yet" />
-        </Card>
+      {/* Real ways to get gems: capped rewarded ads and Google Play gem packs (verified by the server) */}
+      <View style={{ marginTop: space.xl }}>
+        <SectionHeader title="Get more gems" />
+        <GetGemsSection />
       </View>
 
       <Sheet visible={!!sel} onClose={close} title={sel?.name}>

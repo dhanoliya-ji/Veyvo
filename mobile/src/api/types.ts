@@ -69,6 +69,7 @@ export type Me = {
   interests: Interest[];
   privacy: Privacy;
   onboarded: boolean;
+  plus_active?: boolean;
   xp: number;
   level: number;
   level_progress: number;
