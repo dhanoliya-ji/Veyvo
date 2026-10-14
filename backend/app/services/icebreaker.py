@@ -53,7 +53,7 @@ async def session_view(db: AsyncSession, user: User, session: IcebreakerSession)
     both_answered = mine is not None and theirs is not None
     return {
         "id": str(session.id),
-        "status": session.status,
+        "status": "ended" if session.status == "active" and session.expires_at <= utcnow() else session.status,
         "partner": people[other_id].model_dump(mode="json"),
         "interest": {"id": interest.id, "name": interest.name} if interest else None,
         "questions": session.questions,

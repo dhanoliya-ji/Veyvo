@@ -187,3 +187,17 @@ async def test_blocked_hosts_rooms_hidden(client):
     await client.post(f"/blocks/{viewer['id']}", headers=host["headers"])
     assert room["id"] not in [r["id"] for r in (await client.get("/rooms", headers=viewer["headers"])).json()]
     assert (await client.post(f"/rooms/{room['id']}/join", headers=viewer["headers"])).status_code == 404
+
+
+async def test_removed_participant_cooldown_and_silent_rejoin(client):
+    host, guest = await make_user(client), await make_user(client)
+    room = (await _create(client, host, open_mic=False)).json()
+    await client.post(f"/rooms/{room['id']}/join", headers=guest["headers"])
+    await client.post(f"/rooms/{room['id']}/hand", headers=guest["headers"])
+    # Re-joining (e.g. after a reconnect) keeps the raised hand.
+    detail = (await client.post(f"/rooms/{room['id']}/join", headers=guest["headers"])).json()
+    assert next(p for p in detail["participants"] if p["id"] == guest["id"])["hand_raised"] is True
+    await client.post(f"/rooms/{room['id']}/moderate", json={"user_id": guest["id"], "action": "remove"}, headers=host["headers"])
+    r = await client.post(f"/rooms/{room['id']}/join", headers=guest["headers"])
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "room_removed_recently"

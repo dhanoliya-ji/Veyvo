@@ -124,7 +124,8 @@ async def _handle(conn: Connection, msg: dict) -> None:
         return
 
     try:
-        await hit("ws_event", str(conn.user_id))
+        # Doodle strokes stream quickly, so they get their own (higher) budget.
+        await hit("ws_draw" if kind in ("draw", "draw_clear") else "ws_event", str(conn.user_id))
     except AppError:
         await conn.send({"type": "error", "code": "rate_limited"})
         return

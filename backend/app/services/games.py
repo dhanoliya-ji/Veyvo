@@ -408,6 +408,9 @@ async def can_draw(db: AsyncSession, user_id: uuid.UUID, game_id: uuid.UUID) -> 
     state = game.state
     if state.get("phase") != "drawing":
         return False
+    ends = _dt(state.get("phase_ends_at"))
+    if ends is None or ends <= utcnow():
+        return False  # time's up, even if nobody has advanced the game yet
     return state["drawers"][state["round"]] == str(user_id)
 
 
@@ -425,6 +428,7 @@ async def view(db: AsyncSession, user: User, game_id: uuid.UUID) -> GameView:
     state = game.state
     round_view = None
     answered_ids: set[uuid.UUID] = set()
+    hidden_points: dict[uuid.UUID, int] = {}
 
     if game.status in ("active", "finished") and state:
         idx = state["round"]
@@ -432,6 +436,9 @@ async def view(db: AsyncSession, user: User, game_id: uuid.UUID) -> GameView:
         answered_ids = {s.user_id for s in subs}
         mine = next((s for s in subs if s.user_id == user.id), None)
         phase = state["phase"]
+        if game.game_type == "trivia" and phase == "question" and game.status == "active":
+            # Don't let scoreboard jumps reveal who answered correctly before the reveal.
+            hidden_points = {s.user_id: s.points for s in subs}
         base = dict(
             index=idx, total=_total_rounds(game), phase=phase, phase_ends_at=_dt(state.get("phase_ends_at")), answered_count=len(subs)
         )
@@ -479,7 +486,12 @@ async def view(db: AsyncSession, user: User, game_id: uuid.UUID) -> GameView:
         room_id=game.room_id,
         players=sorted(
             [
-                GamePlayerOut(**people[p.user_id].model_dump(), score=p.score, active=p.active, answered=p.user_id in answered_ids)
+                GamePlayerOut(
+                    **people[p.user_id].model_dump(),
+                    score=p.score - hidden_points.get(p.user_id, 0),
+                    active=p.active,
+                    answered=p.user_id in answered_ids,
+                )
                 for p in players
             ],
             key=lambda x: -x.score,

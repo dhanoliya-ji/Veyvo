@@ -43,7 +43,12 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.2.2",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^57.0.2",
+    "jest": "^29.7.0",
+    "jest-expo": "^57.0.6",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -55,5 +60,14 @@
     "lint": "expo lint",
     "test": "jest"
   },
-  "private": true
+  "private": true,
+  "jest": {
+    "preset": "jest-expo",
+    "testMatch": [
+      "**/__tests__/**/*.test.ts?(x)"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|lucide-react-native|react-native-svg|zustand|@tanstack/.*)"
+    ]
+  }
 }

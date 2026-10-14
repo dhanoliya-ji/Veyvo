@@ -26,6 +26,7 @@ LIMITS: dict[str, tuple[int, int]] = {
     "search": (60, 60),
     "icebreaker": (20, 3600),
     "ws_event": (120, 30),
+    "ws_draw": (450, 30),
     "export": (3, 86400),
     "post": (10, 600),
 }

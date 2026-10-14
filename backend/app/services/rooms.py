@@ -42,6 +42,13 @@ def presence_key(room_id: uuid.UUID) -> str:
     return f"room:{room_id}:present"
 
 
+KICK_COOLDOWN_SECONDS = 600
+
+
+def kick_key(room_id: uuid.UUID, user_id: uuid.UUID) -> str:
+    return f"room:{room_id}:kicked:{user_id}"
+
+
 def activity_key(room_id: uuid.UUID) -> str:
     return f"room:{room_id}:active_at"
 
@@ -176,6 +183,8 @@ async def room_out(
 async def room_detail(db: AsyncSession, room: Room, user: User) -> RoomDetail:
     member = await check_access(db, room, user)
     present = await present_ids(room.id)
+    if user.id in present and room.status == "live":
+        await heartbeat(room.id, user.id)  # any read by a participant keeps their seat
     friends = await friend_ids(db, user.id)
     base = await room_out(db, room, user, friends=friends, present=present)
     members = (
@@ -330,6 +339,11 @@ async def join_room(db: AsyncSession, user: User, room_id: uuid.UUID) -> RoomDet
         if room.host_id != user.id:
             raise AppError("This hangout hasn't started yet.", code="room_not_started", status_code=409)
         room.status, room.started_at = "live", utcnow()
+        went_live = True
+    else:
+        went_live = False
+    if await get_store().get_value(kick_key(room.id, user.id)):
+        raise Forbidden("You were removed from this hangout. You can rejoin in a few minutes.", code="room_removed_recently")
 
     present = await present_ids(room.id)
     is_staff = room.host_id == user.id or (member and member.role in ("host", "moderator"))
@@ -344,22 +358,26 @@ async def join_room(db: AsyncSession, user: User, room_id: uuid.UUID) -> RoomDet
         member.role = "speaker" if room.open_mic else "listener"
     member.first_joined_at = member.first_joined_at or now
     member.last_joined_at = now
-    member.hand_raised = False
 
     first_time_today = user.id not in present
     await heartbeat(room.id, user.id)
     if first_time_today:
+        member.hand_raised = False
         await rewards.track(db, user.id, "room_joined")
         await rewards.touch_streak(db, user.id)
         friends = await friend_ids(db, user.id)
         for fid in friends & set(present):
             await rewards.add_friendship_points(db, user.id, fid, 2)
     await db.commit()
-    await publish(
-        f"room:{room.id}",
-        "room.participant_joined",
-        {"room_id": str(room.id), "user": summary(user.profile).model_dump(mode="json"), "role": member.role},
-    )
+    if went_live:
+        await publish(f"room:{room.id}", "room.updated", {"room_id": str(room.id), "status": "live"})
+    if first_time_today:
+        # Re-joins (reconnects) are silent so others don't see duplicate "joined" events.
+        await publish(
+            f"room:{room.id}",
+            "room.participant_joined",
+            {"room_id": str(room.id), "user": summary(user.profile).model_dump(mode="json"), "role": member.role},
+        )
     return await room_detail(db, room, user)
 
 
@@ -428,6 +446,8 @@ async def moderate(db: AsyncSession, actor: User, room: Room, target_id: uuid.UU
     elif action in ("remove", "ban"):
         target.banned = action == "ban"
         await get_store().zrem(presence_key(room.id), str(target_id))
+        if action == "remove":
+            await get_store().set_value(kick_key(room.id, target_id), "1", ttl_seconds=KICK_COOLDOWN_SECONDS)
     await db.commit()
 
     can_speak = _can_speak(room, target, await db.get(User, target_id)) if action not in ("remove", "ban") else False
