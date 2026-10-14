@@ -5,7 +5,7 @@ from sqlalchemy import or_, select
 
 from app.api.dependencies import DB, ActiveUser
 from app.models import PrivacySettings, Profile, User
-from app.schemas.common import Ok, UserSummary
+from app.schemas.common import Ok, UserSummary, like_pattern
 from app.schemas.profile import BlockedOut, FriendOut, FriendRequestIn, FriendRequestOut, KudosIn, PublicProfile
 from app.schemas.social import SearchResults
 from app.services import communities, friends, profiles, rooms
@@ -33,7 +33,10 @@ async def search(user: ActiveUser, db: DB, q: str = Query(min_length=1, max_leng
             Profile.onboarded_at.is_not(None),
             User.status == "active",
             PrivacySettings.discoverable.is_(True),
-            or_(Profile.username.ilike(f"{term}%"), Profile.display_name.ilike(f"%{term}%")),
+            or_(
+                Profile.username.ilike(like_pattern(term, prefix=True), escape="\\"),
+                Profile.display_name.ilike(like_pattern(term), escape="\\"),
+            ),
         )
         .limit(20)
     )

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
 from app.models import Community, CommunityMember, CommunityPost, Interest, Room, User, UserInterest
+from app.schemas.common import like_pattern
 from app.schemas.social import CommunityIn, CommunityMemberOut, CommunityOut, CommunityPostOut
 from app.services.users import blocked_ids, summaries
 
@@ -80,7 +81,7 @@ async def list_communities(
     if interest_id:
         stmt = stmt.where(Community.interest_id == interest_id)
     if q:
-        stmt = stmt.where(Community.name.ilike(f"%{q.strip()[:60]}%"))
+        stmt = stmt.where(Community.name.ilike(like_pattern(q.strip()[:60]), escape="\\"))
     rows = list(await db.scalars(stmt.order_by(Community.created_at.desc()).limit(limit)))
     return [await community_out(db, c, user) for c in rows]
 

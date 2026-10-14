@@ -18,6 +18,12 @@ def clean_text(value: str) -> str:
     return value.strip()
 
 
+def like_pattern(term: str, *, prefix: bool = False) -> str:
+    """Escape LIKE wildcards in user input. Use with `.ilike(pattern, escape="\\")`."""
+    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"{escaped}%" if prefix else f"%{escaped}%"
+
+
 def _single_line(value: str) -> str:
     return " ".join(clean_text(value).split())
 

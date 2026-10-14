@@ -18,7 +18,7 @@ from app.models import (
     RoomMessage,
     User,
 )
-from app.schemas.common import Page
+from app.schemas.common import Page, like_pattern
 from app.schemas.social import AdminUserOut, AuditOut, ReportDetail, ReportOut
 from app.services.auth import revoke_all_sessions
 from app.services.notifications import notify
@@ -315,7 +315,7 @@ async def search_users(db: AsyncSession, actor: User, q: str, limit: int = 25) -
     if "@" in q and actor.role == "admin":
         stmt = stmt.where(User.email == q)
     else:
-        stmt = stmt.where(Profile.username.ilike(f"{q.lstrip('@')}%"))
+        stmt = stmt.where(Profile.username.ilike(like_pattern(q.lstrip("@"), prefix=True), escape="\\"))
     users = list(await db.scalars(stmt.limit(limit)))
     out = []
     for u in users:

@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -37,6 +38,11 @@ async def send_request(db: AsyncSession, sender: User, recipient_id: uuid.UUID, 
     if await get_friendship(db, sender.id, recipient_id):
         raise Conflict("You're already friends.", code="already_friends")
 
+    declined = await recently_declined(db, sender.id, recipient_id)
+    if declined:
+        # Don't reveal the decline and don't allow re-sending for a cooling-off period.
+        return {"status": "pending", "request_id": str(declined.id)}
+
     existing = await pending_request_between(db, sender.id, recipient_id)
     if existing:
         if existing.recipient_id == sender.id:
@@ -67,6 +73,23 @@ async def send_request(db: AsyncSession, sender: User, recipient_id: uuid.UUID, 
         recipient_id, "friend_request.created", {"request_id": str(request.id), "from": summary(sender.profile).model_dump(mode="json")}
     )
     return {"status": "pending", "request_id": str(request.id)}
+
+
+DECLINE_COOLDOWN = timedelta(days=30)
+
+
+async def recently_declined(db: AsyncSession, sender_id: uuid.UUID, recipient_id: uuid.UUID) -> FriendRequest | None:
+    return await db.scalar(
+        select(FriendRequest)
+        .where(
+            FriendRequest.sender_id == sender_id,
+            FriendRequest.recipient_id == recipient_id,
+            FriendRequest.status == "declined",
+            FriendRequest.responded_at > utcnow() - DECLINE_COOLDOWN,
+        )
+        .order_by(FriendRequest.responded_at.desc())
+        .limit(1)
+    )
 
 
 async def _locked_request(db: AsyncSession, request_id: uuid.UUID) -> FriendRequest:
@@ -120,6 +143,8 @@ async def cancel_request(db: AsyncSession, user: User, request_id: uuid.UUID) ->
     request = await _locked_request(db, request_id)
     if request.sender_id != user.id:
         raise NotFound("That friend request no longer exists.", code="request_not_found")
+    if request.status == "declined":
+        return  # looks cancelled to the sender; the cooling-off period still applies
     if request.status != "pending":
         raise Conflict("This request was already answered.", code="request_not_pending")
     request.status = "cancelled"

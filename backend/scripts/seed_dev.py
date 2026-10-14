@@ -63,8 +63,12 @@ async def main() -> None:
             avatar["hair"] = rng.choice(["curlyTop", "bob", "short", "long", "bun", "buzz", "afro", "braids"])
             avatar["outfit"] = rng.choice(["tee", "hoodie", "collar", "sweater"])
             avatar["accessory"] = rng.choice(["none", "glasses", "headphones"])
-            user = User(email=f"{username.replace('.', '_')}@example.com", password_hash=hash_password(PASSWORD), email_verified_at=utcnow())
-            user.profile = Profile(username=username, display_name=name, bio=bio, avatar=avatar, onboarded_at=utcnow(), gems=120, xp=rng.randint(50, 900))
+            user = User(
+                email=f"{username.replace('.', '_')}@example.com", password_hash=hash_password(PASSWORD), email_verified_at=utcnow()
+            )
+            user.profile = Profile(
+                username=username, display_name=name, bio=bio, avatar=avatar, onboarded_at=utcnow(), gems=120, xp=rng.randint(50, 900)
+            )
             user.privacy = PrivacySettings(notification_prefs={})
             db.add(user)
             await db.flush()
@@ -85,8 +89,14 @@ async def main() -> None:
             if await db.scalar(select(Community.id).where(Community.name == name)):
                 continue
             owner = users[i % len(users)]
-            c = Community(slug=f"{slug}-demo", name=name, description=desc, interest_id=interests[slug].id, owner_id=owner.id,
-                          rules=["Be kind and respectful.", "Stay on topic.", "No spam."])
+            c = Community(
+                slug=f"{slug}-demo",
+                name=name,
+                description=desc,
+                interest_id=interests[slug].id,
+                owner_id=owner.id,
+                rules=["Be kind and respectful.", "Stay on topic.", "No spam."],
+            )
             db.add(c)
             await db.flush()
             db.add(CommunityMember(community_id=c.id, user_id=owner.id, role="owner"))
@@ -95,15 +105,28 @@ async def main() -> None:
                     db.add(CommunityMember(community_id=c.id, user_id=other.id))
 
         # Scheduled (not live) hangouts. Live counts always come from real presence, never seeded.
-        titles = [("Trivia Night", "trivia", "cafe"), ("Silent Study Hour", "study", "library"), ("Late Night Deep Talks", "deep-talks", "rooftop"), ("Lofi Listening Party", "music", "campfire")]
+        titles = [
+            ("Trivia Night", "trivia", "cafe"),
+            ("Silent Study Hour", "study", "library"),
+            ("Late Night Deep Talks", "deep-talks", "rooftop"),
+            ("Lofi Listening Party", "music", "campfire"),
+        ]
         for hours, (title, tag, scene) in enumerate(titles, start=2):
             if await db.scalar(select(Room.id).where(Room.title == title, Room.status == "scheduled")):
                 continue
             host = rng.choice(users)
-            room = Room(host_id=host.id, title=title, description="A Veyvo demo event.", kind="study" if tag == "study" else "hangout",
-                        format="voice", scene=scene, interest_id=interests[tag].id, status="scheduled",
-                        scheduled_for=utcnow() + timedelta(hours=hours),
-                        timer={"phase": "idle", "focus_minutes": 25, "break_minutes": 5, "cycle": 1} if tag == "study" else {})
+            room = Room(
+                host_id=host.id,
+                title=title,
+                description="A Veyvo demo event.",
+                kind="study" if tag == "study" else "hangout",
+                format="voice",
+                scene=scene,
+                interest_id=interests[tag].id,
+                status="scheduled",
+                scheduled_for=utcnow() + timedelta(hours=hours),
+                timer={"phase": "idle", "focus_minutes": 25, "break_minutes": 5, "cycle": 1} if tag == "study" else {},
+            )
             db.add(room)
             await db.flush()
             db.add(RoomMember(room_id=room.id, user_id=host.id, role="host"))

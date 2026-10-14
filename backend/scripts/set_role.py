@@ -25,7 +25,15 @@ async def main(email: str, role: str) -> None:
             sys.exit("No account with that email.")
         previous = user.role
         user.role = role
-        db.add(ModerationAction(actor_id=None, action=f"cli_set_role:{role}", target_type="user", target_id=str(user.id), reason=f"CLI change from {previous}"))
+        db.add(
+            ModerationAction(
+                actor_id=None,
+                action=f"cli_set_role:{role}",
+                target_type="user",
+                target_id=str(user.id),
+                reason=f"CLI change from {previous}",
+            )
+        )
         await db.commit()
     print(f"{email}: {previous} -> {role}")
 

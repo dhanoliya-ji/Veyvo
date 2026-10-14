@@ -150,3 +150,30 @@ async def test_unknown_user_is_404(client):
     a = await make_user(client)
     r = await client.get(f"/users/{uuid.uuid4()}", headers=a["headers"])
     assert r.status_code == 404
+
+
+async def test_search_escapes_wildcards(client):
+    a = await make_user(client)
+    await make_user(client, username="plainname")
+    res = (await client.get("/search", params={"q": "_"}, headers=a["headers"])).json()
+    assert res["users"] == []  # "_" is literal, not "any character"
+    res = (await client.get("/search", params={"q": "%"}, headers=a["headers"])).json()
+    assert res["users"] == []
+
+
+async def test_declined_request_stays_private_and_cools_down(client):
+    a, b = await make_user(client), await make_user(client)
+    rid = (await client.post("/friends/requests", json={"user_id": b["id"]}, headers=a["headers"])).json()["request_id"]
+    await client.post(f"/friends/requests/{rid}/decline", headers=b["headers"])
+    # The sender still sees "Requested", and re-sending doesn't create a new request.
+    assert (await client.get(f"/users/{b['id']}", headers=a["headers"])).json()["relationship"] == "request_sent"
+    r = await client.post("/friends/requests", json={"user_id": b["id"]}, headers=a["headers"])
+    assert r.json() == {"status": "pending", "request_id": rid}
+    assert (await client.get("/friends/requests", headers=b["headers"])).json() == []
+
+
+async def test_profile_can_message_respects_viewer_setting(client):
+    a = await make_user(client, privacy={"who_can_message": "nobody"})
+    b = await make_user(client)
+    await befriend(client, a, b)
+    assert (await client.get(f"/users/{b['id']}", headers=a["headers"])).json()["can_message"] is False

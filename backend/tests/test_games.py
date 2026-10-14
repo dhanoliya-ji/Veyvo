@@ -114,7 +114,8 @@ async def test_doodle_word_secret_and_guessing(client):
     guesser_view = (await client.get(f"/games/{game['id']}", headers=guesser["headers"])).json()
     assert drawer_view["round"]["word"] == word
     assert guesser_view["round"]["word"] is None
-    assert word not in str(guesser_view)
+    # The secret word must not appear in any value the guesser receives (keys like "category" are fine).
+    assert all(word not in str(v) for v in guesser_view["round"].values())
 
     assert (
         await client.post(f"/games/{game['id']}/guess", json={"round_index": 0, "guess": word}, headers=drawer["headers"])

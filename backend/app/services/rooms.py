@@ -11,6 +11,7 @@ from app.core.exceptions import AppError, Forbidden, NotFound, ServiceUnavailabl
 from app.core.logging import logger
 from app.core.store import get_store
 from app.models import Community, CommunityMember, Interest, OwnedItem, Room, RoomMember, RoomMessage, User
+from app.schemas.common import like_pattern
 from app.schemas.social import (
     MediaTokenOut,
     ParticipantOut,
@@ -292,7 +293,7 @@ async def list_rooms(
     if community_id:
         stmt = stmt.where(Room.community_id == community_id)
     if q:
-        stmt = stmt.where(Room.title.ilike(f"%{q.strip()[:60]}%"))
+        stmt = stmt.where(Room.title.ilike(like_pattern(q.strip()[:60]), escape="\\"))
     order = Room.scheduled_for.asc() if status == "scheduled" else Room.started_at.desc()
     rooms = list(await db.scalars(stmt.order_by(order).limit(limit * 2)))
 

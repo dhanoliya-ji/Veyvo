@@ -165,6 +165,11 @@ async def public_profile(db: AsyncSession, viewer: User, target_id: uuid.UUID) -
     friendship = None if is_self else await get_friendship(db, viewer.id, target.id)
     is_friend = friendship is not None
     pending = None if is_self or is_friend else await pending_request_between(db, viewer.id, target.id)
+    if pending is None and not is_self and not is_friend:
+        # A recently declined request still looks "sent" to its sender, so declines stay private.
+        from app.services.friends import recently_declined
+
+        pending = await recently_declined(db, viewer.id, target.id)
 
     relationship = "self" if is_self else "friends" if is_friend else "none"
     if pending:
@@ -204,7 +209,7 @@ async def public_profile(db: AsyncSession, viewer: User, target_id: uuid.UUID) -
         mutual_friends=mutual,
         kudos={} if limited else await kudos_counts(db, target.id),
         online=None if is_self else await visible_online(db, viewer.id, target, is_friend=is_friend),
-        can_message=is_friend and privacy.who_can_message == "friends",
+        can_message=is_friend and privacy.who_can_message == "friends" and viewer.privacy.who_can_message == "friends",
         can_friend_request=can_request,
         can_invite=not is_self and (privacy.who_can_invite == "everyone" or (privacy.who_can_invite == "friends" and is_friend)),
         limited=limited,
@@ -238,7 +243,7 @@ async def give_kudos(db: AsyncSession, giver: User, receiver_id: uuid.UUID, tag:
     await rewards.grant(db, receiver_id, gems=2, xp=5, reason="kudos_received", key=f"kudos:{giver.id}:{receiver_id}:{day}")
     from app.services.notifications import notify
 
-    await notify(db, receiver_id, "kudos", entity_type="user", entity_id=None, data={"tag": tag}, group_key=f"kudos:{day}")
+    await notify(db, receiver_id, "kudos", entity_type="user", entity_id=str(receiver_id), data={"tag": tag}, group_key=f"kudos:{day}")
     await db.commit()
 
 
