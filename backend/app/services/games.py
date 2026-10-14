@@ -19,7 +19,7 @@ from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
 from app.models import GamePlayer, GameSession, GameSubmission, Room, User
 from app.schemas.games import GamePlayerOut, GameView, GuessResult, RoundView
-from app.services import rewards
+from app.services import moments, rewards
 from app.services.users import blocked_ids, friend_ids, summaries
 from app.websocket.hub import publish
 
@@ -264,6 +264,10 @@ async def _award_finish(db: AsyncSession, game: GameSession) -> None:
     if not players:
         return
     top = max(p.score for p in players)
+    community_id = None
+    if game.room_id:
+        room = await db.get(Room, game.room_id)
+        community_id = room.community_id if room else None
     for p in players:
         win = p.score == top and top > 0 and len(players) > 1
         await rewards.grant(
@@ -271,6 +275,15 @@ async def _award_finish(db: AsyncSession, game: GameSession) -> None:
         )
         await rewards.track(db, p.user_id, "game_finished")
         await rewards.touch_streak(db, p.user_id)
+        # Rank = 1 + number of players with a higher score (ties share a rank). Counts only, no names.
+        rank = 1 + sum(1 for o in players if o.score > p.score)
+        await moments.game_finished(
+            db, p.user_id, game_id=game.id, game_type=game.game_type, rank=rank, score=p.score, players=len(players)
+        )
+        if community_id:
+            from app.services.communities import POINTS_GAME, add_points
+
+            await add_points(db, community_id, p.user_id, POINTS_GAME)
     ids = [p.user_id for p in players]
     for i, a in enumerate(ids):
         friends = await friend_ids(db, a)

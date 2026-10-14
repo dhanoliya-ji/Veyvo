@@ -68,6 +68,24 @@ class CommunityMember(Base):
     status: Mapped[str] = mapped_column(String(20), default="active")  # active | pending | banned
     joined_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    # All-time activity points in this community; decides the member's rank badge.
+    total_points: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
+class CommunityPoints(Base):
+    """Activity points per member per ISO week (e.g. "2026-W42"), for weekly leagues."""
+
+    __tablename__ = "community_points"
+    __table_args__ = (
+        UniqueConstraint("community_id", "user_id", "week"),
+        Index("ix_community_points_community_week", "community_id", "week"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    community_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("communities.id", ondelete="CASCADE"))
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    week: Mapped[str] = mapped_column(String(10))
+    points: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class CommunityPost(Base):
@@ -261,3 +279,22 @@ class MaintenanceMarker(Base):
     key: Mapped[str] = mapped_column(String(40), primary_key=True)
     value: Mapped[str] = mapped_column(Text, default="")
     updated_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+
+
+class Moment(Base):
+    """A private recap card ("Won a round of Trivia"). Visible only to its owner.
+
+    Stats hold counts and the owner's own numbers only, never other people's names or ids.
+    """
+
+    __tablename__ = "moments"
+    __table_args__ = (Index("ix_moments_user_created", "user_id", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(30))  # game_finished | room_hangout | streak_milestone | level_up | friend_made
+    title: Mapped[str] = mapped_column(String(120))
+    stats: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Makes creation exactly-once per source event (NULLs never collide).
+    dedupe_key: Mapped[str | None] = mapped_column(String(120), unique=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow, index=True)

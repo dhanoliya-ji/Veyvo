@@ -1,8 +1,8 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -22,7 +22,8 @@ class Settings(BaseSettings):
     access_token_minutes: int = 15
     refresh_token_days: int = 30
 
-    cors_origins: list[str] = Field(default_factory=list)
+    # Comma-separated in the environment (an empty value means none).
+    cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
     # Minimum age to hold an account. Veyvo is adults-only.
     minimum_age: int = 18

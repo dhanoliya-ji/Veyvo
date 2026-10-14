@@ -15,6 +15,7 @@ from app.content.catalog import QUESTS, QUESTS_BY_KEY, STARTER_COMPLETED_QUEST
 from app.core.database import utcnow
 from app.models import GemTransaction, Profile, QuestProgress
 from app.schemas.social import QuestOut, RewardOut
+from app.services import moments
 from app.services.users import get_friendship, level_for_xp
 
 MAX_FREEZES = 3
@@ -39,6 +40,8 @@ async def grant(db: AsyncSession, user_id: uuid.UUID, *, gems: int, xp: int, rea
     profile.gems += gems
     profile.xp += xp
     after = level_for_xp(profile.xp)
+    if after > before:
+        await moments.level_up(db, user_id, after)
     return RewardOut(gems=gems, xp=xp, new_balance=profile.gems, level=after, leveled_up=after > before)
 
 
@@ -70,6 +73,9 @@ async def init_quests(db: AsyncSession, user_id: uuid.UUID) -> None:
 
 
 async def track(db: AsyncSession, user_id: uuid.UUID, event: str, amount: int = 1) -> None:
+    from app.services import events  # local import: events uses `grant` from this module
+
+    await events.track(db, user_id, event, amount)
     keys = [q["key"] for q in QUESTS if q["event"] == event]
     if not keys:
         return
@@ -137,6 +143,7 @@ async def touch_streak(db: AsyncSession, user_id: uuid.UUID) -> None:
         profile.streak_current = 1
     profile.streak_last_date = now
     profile.streak_best = max(profile.streak_best, profile.streak_current)
+    await moments.streak_milestone(db, user_id, profile.streak_current, now.isoformat())
     if profile.streak_current % 7 == 0 and profile.streak_freezes < MAX_FREEZES:
         profile.streak_freezes += 1
     await grant(db, user_id, gems=5, xp=5, reason="streak", key=f"streak:{user_id}:{now.isoformat()}")

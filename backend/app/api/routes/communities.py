@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query
 
 from app.api.dependencies import DB, ActiveUser
 from app.schemas.common import Ok
+from app.schemas.moments import LeaderboardOut
 from app.schemas.social import CommunityIn, CommunityMemberOut, CommunityOut, CommunityPostIn, CommunityPostOut
 from app.services import communities
 from app.services.rate_limit import hit
@@ -55,6 +56,11 @@ async def leave(community_id: uuid.UUID, user: ActiveUser, db: DB):
 @router.get("/{community_id}/members", response_model=list[CommunityMemberOut])
 async def members(community_id: uuid.UUID, user: ActiveUser, db: DB, status: Literal["active", "pending"] = "active"):
     return await communities.members(db, user, await communities.get_community(db, community_id), status)
+
+
+@router.get("/{community_id}/leaderboard", response_model=LeaderboardOut)
+async def leaderboard(community_id: uuid.UUID, user: ActiveUser, db: DB, week: Literal["current", "previous"] = "current"):
+    return await communities.leaderboard(db, user, await communities.get_community(db, community_id), week)
 
 
 @router.post("/{community_id}/members/{user_id}", response_model=Ok)

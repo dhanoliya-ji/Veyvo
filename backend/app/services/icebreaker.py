@@ -14,7 +14,7 @@ from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
 from app.core.store import get_store
 from app.models import FriendRequest, Friendship, IcebreakerSession, Interest, User, UserInterest
 from app.schemas.common import clean_text
-from app.services import rewards
+from app.services import moments, rewards
 from app.services.notifications import notify
 from app.services.users import are_friends, is_blocked_either, ordered_pair, pair_key, summaries
 from app.websocket.hub import publish_user
@@ -179,6 +179,7 @@ async def decide(db: AsyncSession, user: User, session_id: uuid.UUID, decision: 
                 )
                 for uid in (user.id, other_id):
                     await rewards.track(db, uid, "friend_made")
+                    await moments.friend_made(db, uid, f"{low}:{high}")
             for uid, actor in ((user.id, other_id), (other_id, user.id)):
                 await notify(db, uid, "icebreaker_connected", actor_id=actor, entity_type="user", entity_id=str(actor))
         else:

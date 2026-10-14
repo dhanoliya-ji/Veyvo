@@ -10,7 +10,7 @@ from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
 from app.models import Block, FriendRequest, Friendship, Profile, User, UserInterest
 from app.schemas.common import UserSummary
 from app.schemas.profile import BlockedOut, FriendOut, FriendRequestOut
-from app.services import rewards
+from app.services import moments, rewards
 from app.services.notifications import notify
 from app.services.users import (
     blocked_ids,
@@ -111,10 +111,13 @@ async def accept_request(db: AsyncSession, user: User, request_id: uuid.UUID) ->
     request.status = "accepted"
     request.responded_at = utcnow()
     low, high = ordered_pair(request.sender_id, request.recipient_id)
-    if await get_friendship(db, low, high) is None:
+    is_new = await get_friendship(db, low, high) is None
+    if is_new:
         db.add(Friendship(user_low_id=low, user_high_id=high))
     for uid in (request.sender_id, request.recipient_id):
         await rewards.track(db, uid, "friend_made")
+        if is_new:
+            await moments.friend_made(db, uid, f"{low}:{high}")
     await notify(db, request.sender_id, "friend_accepted", actor_id=user.id, entity_type="user", entity_id=str(user.id))
     try:
         await db.commit()

@@ -4,7 +4,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.content.catalog import KUDOS_TAGS, item_for_value
+from app.content.catalog import KUDOS_TAGS, item_for_value, requires_ownership
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden
 from app.models import Interest, Kudos, OwnedItem, PrivacySettings, Profile, User, UserInterest
@@ -84,7 +84,9 @@ async def validate_avatar_ownership(db: AsyncSession, user_id: uuid.UUID, avatar
     owned = await owned_values(db, user_id)
     for slot in ("hair", "outfit", "accessory"):
         item = item_for_value(slot, getattr(avatar, slot))
-        if item and item["price"] > 0 and item["key"] not in owned:
+        if item and requires_ownership(item) and item["key"] not in owned:
+            if item.get("event_only"):
+                raise Forbidden(f"“{item['name']}” is an event reward. Earn it during the event to wear it.", code="item_locked")
             raise Forbidden(f"Unlock “{item['name']}” in the shop first.", code="item_locked")
 
 

@@ -19,6 +19,7 @@ from app.models import (
     GemTransaction,
     Kudos,
     Message,
+    Moment,
     Notification,
     OneTimeCode,
     OwnedItem,
@@ -36,6 +37,7 @@ ROOM_CHAT_RETENTION = timedelta(days=30)
 NOTIFICATION_RETENTION = timedelta(days=90)
 SESSION_RETENTION = timedelta(days=30)
 RESOLVED_REPORT_EVIDENCE_RETENTION = timedelta(days=180)
+MOMENT_RETENTION = timedelta(days=180)
 
 
 async def delete_account(db: AsyncSession, user: User, password: str) -> None:
@@ -43,7 +45,8 @@ async def delete_account(db: AsyncSession, user: User, password: str) -> None:
 
     Removed: account, profile, avatar, interests, privacy settings, friendships, requests, blocks,
     direct messages the user sent and their conversation memberships, room chat, posts, game data,
-    kudos, wallet, quests, notifications, push tokens and sessions (via ON DELETE CASCADE).
+    kudos, wallet, quests, moments, community points, notifications, push tokens and sessions
+    (via ON DELETE CASCADE).
     Kept without the user's identity: reports they filed (reporter set to null) so safety reviews
     can finish, and moderation audit entries (actor set to null).
     """
@@ -149,6 +152,10 @@ async def export_data(db: AsyncSession, user: User) -> dict:
             {"quest": q.quest_key, "progress": q.progress}
             for q in await db.scalars(select(QuestProgress).where(QuestProgress.user_id == user.id))
         ],
+        "moments": [
+            {"kind": m.kind, "title": m.title, "stats": m.stats, "created_at": m.created_at.isoformat()}
+            for m in await db.scalars(select(Moment).where(Moment.user_id == user.id).order_by(Moment.created_at))
+        ],
         "daily_answers": [
             {"day": d.day.isoformat(), "question": d.question_key, "choice": d.choice}
             for d in await db.scalars(select(DailyAnswer).where(DailyAnswer.user_id == user.id))
@@ -167,6 +174,7 @@ async def purge_expired(db: AsyncSession) -> dict:
     counts["notifications"] = (
         await db.execute(delete(Notification).where(Notification.created_at < now - NOTIFICATION_RETENTION))
     ).rowcount
+    counts["moments"] = (await db.execute(delete(Moment).where(Moment.created_at < now - MOMENT_RETENTION))).rowcount
     counts["codes"] = (await db.execute(delete(OneTimeCode).where(OneTimeCode.expires_at < now - timedelta(days=1)))).rowcount
     counts["sessions"] = (
         await db.execute(delete(AuthSession).where(or_(AuthSession.expires_at < now, AuthSession.revoked_at < now - SESSION_RETENTION)))

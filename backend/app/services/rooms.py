@@ -21,7 +21,7 @@ from app.schemas.social import (
     RoomOut,
     TimerState,
 )
-from app.services import rewards
+from app.services import moments, rewards
 from app.services.notifications import notify
 from app.services.users import blocked_ids, friend_ids, summaries, summary
 from app.websocket.hub import publish
@@ -51,6 +51,11 @@ def kick_key(room_id: uuid.UUID, user_id: uuid.UUID) -> str:
 
 def activity_key(room_id: uuid.UUID) -> str:
     return f"room:{room_id}:active_at"
+
+
+def joined_key(room_id: uuid.UUID, user_id: uuid.UUID) -> str:
+    """When this person's current visit started (ephemeral; used for hangout moments)."""
+    return f"room:{room_id}:joined:{user_id}"
 
 
 async def present_ids(room_id: uuid.UUID) -> list[uuid.UUID]:
@@ -263,6 +268,10 @@ async def create_room(db: AsyncSession, user: User, data: RoomIn) -> Room:
     db.add(room)
     await db.flush()
     db.add(RoomMember(room_id=room.id, user_id=user.id, role="host"))
+    if data.community_id:
+        from app.services.communities import award_host
+
+        await award_host(db, data.community_id, user.id)
     await db.commit()
     return room
 
@@ -351,6 +360,7 @@ async def join_room(db: AsyncSession, user: User, room_id: uuid.UUID) -> RoomDet
         raise AppError("This hangout is full right now.", code="room_full", status_code=409)
 
     now = utcnow()
+    first_visit = member is None or member.first_joined_at is None
     if member is None:
         member = RoomMember(room_id=room.id, user_id=user.id, role="speaker" if room.open_mic else "listener")
         db.add(member)
@@ -362,12 +372,18 @@ async def join_room(db: AsyncSession, user: User, room_id: uuid.UUID) -> RoomDet
     first_time_today = user.id not in present
     await heartbeat(room.id, user.id)
     if first_time_today:
+        await get_store().set_value(joined_key(room.id, user.id), now.isoformat(), ttl_seconds=86400)
         member.hand_raised = False
         await rewards.track(db, user.id, "room_joined")
         await rewards.touch_streak(db, user.id)
         friends = await friend_ids(db, user.id)
         for fid in friends & set(present):
             await rewards.add_friendship_points(db, user.id, fid, 2)
+    if room.community_id and first_visit and room.host_id != user.id:
+        # Once per hangout per person, so leaving and rejoining can't farm points.
+        from app.services.communities import POINTS_JOIN_HANGOUT, add_points
+
+        await add_points(db, room.community_id, user.id, POINTS_JOIN_HANGOUT)
     await db.commit()
     if went_live:
         await publish(f"room:{room.id}", "room.updated", {"room_id": str(room.id), "status": "live"})
@@ -382,10 +398,28 @@ async def join_room(db: AsyncSession, user: User, room_id: uuid.UUID) -> RoomDet
 
 
 async def leave_room(db: AsyncSession, user: User, room_id: uuid.UUID) -> None:
-    await get_store().zrem(presence_key(room_id), str(user.id))
+    store = get_store()
+    await store.zrem(presence_key(room_id), str(user.id))
+    joined_raw = await store.get_value(joined_key(room_id, user.id))
+    await store.delete(joined_key(room_id, user.id))
+    changed = False
     member = await _member(db, room_id, user.id)
     if member and member.hand_raised:
         member.hand_raised = False
+        changed = True
+    if joined_raw:
+        room = await db.get(Room, room_id)
+        try:
+            joined_at = datetime.fromisoformat(joined_raw)
+        except ValueError:
+            joined_at = None
+        if room and joined_at:
+            people = len(await present_ids(room_id)) + 1  # a count only, including you
+            await moments.room_hangout(
+                db, user.id, room_id=room_id, joined_at=joined_at, now=utcnow(), scene=room.scene, kind=room.kind, people=people
+            )
+            changed = True
+    if changed:
         await db.commit()
     await publish(f"room:{room_id}", "room.participant_left", {"room_id": str(room_id), "user_id": str(user.id)})
 

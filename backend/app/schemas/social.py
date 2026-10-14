@@ -81,11 +81,15 @@ class CommunityPostOut(ApiModel):
     author: UserSummary
     content: str
     created_at: datetime
+    # Author's community rank: newcomer | regular | core | legend
+    author_rank: str = "newcomer"
 
 
 class CommunityMemberOut(UserSummary):
     role: str
     status: str
+    rank: str = "newcomer"
+    points: int = 0
 
 
 # ---------- Rooms ----------
@@ -337,6 +341,7 @@ class ShopItemOut(ApiModel):
     name: str
     price: int
     owned: bool
+    event_only: bool = False
 
 
 class DailyQuestionOut(ApiModel):

@@ -1,14 +1,17 @@
 import re
 import secrets
 import uuid
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
-from app.models import Community, CommunityMember, CommunityPost, Interest, Room, User, UserInterest
+from app.models import Community, CommunityMember, CommunityPoints, CommunityPost, Interest, Room, User, UserInterest
 from app.schemas.common import like_pattern
+from app.schemas.moments import LeaderboardEntry, LeaderboardOut
 from app.schemas.social import CommunityIn, CommunityMemberOut, CommunityOut, CommunityPostOut
 from app.services.users import blocked_ids, summaries
 
@@ -18,6 +21,146 @@ DEFAULT_RULES = [
     "No spam or self-promotion.",
     "Report anything that breaks the Community Guidelines.",
 ]
+
+
+# ----- Activity points & ranks -----
+POINTS_POST = 2
+POINTS_POST_DAILY_CAP = 10
+POINTS_HOST = 5
+POINTS_HOST_DAILY_CAP = 10  # two hosted hangouts a day count, so spinning up rooms can't farm points
+POINTS_JOIN_HANGOUT = 2
+POINTS_GAME = 3
+LEADERBOARD_SIZE = 20
+
+# All-time points needed for each rank, highest first.
+RANKS = [("legend", 300), ("core", 100), ("regular", 20), ("newcomer", 0)]
+
+
+def rank_for(total: int) -> str:
+    for name, threshold in RANKS:
+        if total >= threshold:
+            return name
+    return "newcomer"
+
+
+def iso_week(day: date) -> str:
+    year, week, _ = day.isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def _today_start() -> datetime:
+    return datetime.combine(datetime.now(UTC).date(), time.min, tzinfo=UTC)
+
+
+async def add_points(db: AsyncSession, community_id: uuid.UUID, user_id: uuid.UUID, points: int) -> int:
+    """Credit activity points to an active member for this ISO week. Returns points added."""
+    if points <= 0:
+        return 0
+    member = await _membership(db, community_id, user_id)
+    if member is None or member.status != "active":
+        return 0
+    week = iso_week(datetime.now(UTC).date())
+    stmt = select(CommunityPoints).where(
+        CommunityPoints.community_id == community_id, CommunityPoints.user_id == user_id, CommunityPoints.week == week
+    )
+    row = await db.scalar(stmt)
+    if row is None:
+        try:
+            async with db.begin_nested():
+                row = CommunityPoints(community_id=community_id, user_id=user_id, week=week, points=0)
+                db.add(row)
+        except IntegrityError:
+            row = await db.scalar(stmt)
+            if row is None:
+                return 0
+    row.points += points
+    member.total_points = (member.total_points or 0) + points
+    return points
+
+
+async def award_post(db: AsyncSession, community_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    """Call before adding the new post. Earlier posts today (removed ones too) count toward the cap."""
+    earlier = await db.scalar(
+        select(func.count())
+        .select_from(CommunityPost)
+        .where(
+            CommunityPost.community_id == community_id,
+            CommunityPost.author_id == user_id,
+            CommunityPost.created_at >= _today_start(),
+        )
+    )
+    if (earlier or 0) * POINTS_POST < POINTS_POST_DAILY_CAP:
+        await add_points(db, community_id, user_id, POINTS_POST)
+
+
+async def award_host(db: AsyncSession, community_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    """Call after the new room is flushed: it is counted among today's hosted rooms."""
+    hosted = await db.scalar(
+        select(func.count())
+        .select_from(Room)
+        .where(Room.community_id == community_id, Room.host_id == user_id, Room.created_at >= _today_start())
+    )
+    if (hosted or 0) * POINTS_HOST <= POINTS_HOST_DAILY_CAP:
+        await add_points(db, community_id, user_id, POINTS_HOST)
+
+
+async def total_points(db: AsyncSession, community_id: uuid.UUID, user_ids) -> dict[uuid.UUID, int]:
+    ids = list(set(user_ids))
+    if not ids:
+        return {}
+    rows = await db.execute(
+        select(CommunityMember.user_id, CommunityMember.total_points).where(
+            CommunityMember.community_id == community_id, CommunityMember.user_id.in_(ids)
+        )
+    )
+    return {uid: pts or 0 for uid, pts in rows}
+
+
+async def leaderboard(db: AsyncSession, user: User, community: Community, period: str = "current") -> LeaderboardOut:
+    await _require_view(db, community, user)
+    day = datetime.now(UTC).date()
+    if period == "previous":
+        day -= timedelta(days=7)
+    week = iso_week(day)
+    rows = (
+        await db.execute(
+            select(CommunityPoints.user_id, CommunityPoints.points)
+            .join(
+                CommunityMember,
+                (CommunityMember.community_id == CommunityPoints.community_id) & (CommunityMember.user_id == CommunityPoints.user_id),
+            )
+            .where(
+                CommunityPoints.community_id == community.id,
+                CommunityPoints.week == week,
+                CommunityPoints.points > 0,
+                CommunityMember.status == "active",
+            )
+            .order_by(CommunityPoints.points.desc(), CommunityPoints.user_id)
+        )
+    ).all()
+    blocked = await blocked_ids(db, user.id)
+    rows = [(uid, pts) for uid, pts in rows if uid not in blocked]
+
+    # Standard competition ranking: ties share a rank (1, 2, 2, 4).
+    ranked: list[tuple[uuid.UUID, int, int]] = []
+    for i, (uid, pts) in enumerate(rows):
+        rank = ranked[-1][2] if ranked and ranked[-1][1] == pts else i + 1
+        ranked.append((uid, pts, rank))
+    top = ranked[:LEADERBOARD_SIZE]
+    mine = next((r for r in ranked if r[0] == user.id), None)
+    wanted = {r[0] for r in top} | ({user.id} if mine else set())
+    people = await summaries(db, wanted)
+    totals = await total_points(db, community.id, wanted)
+
+    def entry(r: tuple[uuid.UUID, int, int]) -> LeaderboardEntry:
+        return LeaderboardEntry(user=people[r[0]], points=r[1], rank=r[2], tier=rank_for(totals.get(r[0], 0)))
+
+    return LeaderboardOut(
+        week=week,
+        period=period,
+        entries=[entry(r) for r in top if r[0] in people],
+        me=entry(mine) if mine and mine[0] in people else None,
+    )
 
 
 def _slugify(name: str) -> str:
@@ -181,7 +324,17 @@ async def members(db: AsyncSession, user: User, community: Community, status: st
     )
     blocked = await blocked_ids(db, user.id)
     people = await summaries(db, [m.user_id for m in rows])
-    return [CommunityMemberOut(**people[m.user_id].model_dump(), role=m.role, status=m.status) for m in rows if m.user_id not in blocked]
+    return [
+        CommunityMemberOut(
+            **people[m.user_id].model_dump(),
+            role=m.role,
+            status=m.status,
+            rank=rank_for(m.total_points or 0),
+            points=m.total_points or 0,
+        )
+        for m in rows
+        if m.user_id not in blocked
+    ]
 
 
 async def manage_member(db: AsyncSession, actor: User, community: Community, target_id: uuid.UUID, action: str) -> None:
@@ -221,8 +374,16 @@ async def posts(db: AsyncSession, user: User, community: Community, limit: int =
     )
     rows = [r for r in rows if r.author_id not in blocked]
     people = await summaries(db, {r.author_id for r in rows})
+    totals = await total_points(db, community.id, people.keys())
     return [
-        CommunityPostOut(id=r.id, community_id=r.community_id, author=people[r.author_id], content=r.content, created_at=r.created_at)
+        CommunityPostOut(
+            id=r.id,
+            community_id=r.community_id,
+            author=people[r.author_id],
+            content=r.content,
+            created_at=r.created_at,
+            author_rank=rank_for(totals.get(r.author_id, 0)),
+        )
         for r in rows
     ]
 
@@ -233,12 +394,20 @@ async def create_post(db: AsyncSession, user: User, community: Community, conten
         raise Forbidden("Join the community to post.", code="not_community_member")
     if community.status != "active":
         raise Forbidden("Posting is paused in this community.", code="community_restricted")
+    await award_post(db, community.id, user.id)
     post = CommunityPost(community_id=community.id, author_id=user.id, content=content)
     db.add(post)
     member.last_seen_at = utcnow()
     await db.commit()
     people = await summaries(db, [user.id])
-    return CommunityPostOut(id=post.id, community_id=community.id, author=people[user.id], content=content, created_at=post.created_at)
+    return CommunityPostOut(
+        id=post.id,
+        community_id=community.id,
+        author=people[user.id],
+        content=content,
+        created_at=post.created_at,
+        author_rank=rank_for(member.total_points or 0),
+    )
 
 
 async def remove_post(db: AsyncSession, user: User, community: Community, post_id: uuid.UUID) -> None:

@@ -134,16 +134,27 @@ COSMETICS: list[dict] = [
     {"key": "acc_sunglasses", "slot": "accessory", "value": "sunglasses", "name": "Sunglasses", "price": 60},
     {"key": "acc_flower", "slot": "accessory", "value": "flower", "name": "Flower clip", "price": 50},
     {"key": "acc_crown", "slot": "accessory", "value": "crown", "name": "Tiny crown", "price": 200},
+    # Event-only: earned by completing the Cozy Season event quest. Never sold; you must own it to wear it.
+    {"key": "acc_scarf", "slot": "accessory", "value": "scarf", "name": "Cozy scarf", "price": 0, "event_only": True},
     {"key": "scene_beach", "slot": "scene", "value": "beach", "name": "Beach at dusk", "price": 150},
     {"key": "scene_space", "slot": "scene", "value": "space", "name": "Space station", "price": 250},
 ]
 COSMETICS_BY_KEY = {c["key"]: c for c in COSMETICS}
 
 
+def is_free_item(item: dict) -> bool:
+    """Free for everyone: price 0 and not an event-only reward."""
+    return item["price"] == 0 and not item.get("event_only")
+
+
+def requires_ownership(item: dict) -> bool:
+    return item["price"] > 0 or bool(item.get("event_only"))
+
+
 def is_free_value(slot: str, value: str) -> bool:
     for item in COSMETICS:
         if item["slot"] == slot and item["value"] == value:
-            return item["price"] == 0
+            return is_free_item(item)
     return False
 
 

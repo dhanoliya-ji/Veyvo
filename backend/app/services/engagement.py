@@ -5,9 +5,9 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.content.catalog import COSMETICS, COSMETICS_BY_KEY
+from app.content.catalog import COSMETICS, COSMETICS_BY_KEY, is_free_item
 from app.content.games import DAILY_QUESTIONS
-from app.core.exceptions import AppError, Conflict, NotFound
+from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
 from app.models import DailyAnswer, OwnedItem, User
 from app.schemas.social import DailyQuestionOut, RewardOut, ShopItemOut
 from app.services import rewards
@@ -63,11 +63,19 @@ async def answer_daily(db: AsyncSession, user: User, choice: int) -> tuple[Daily
 
 async def shop(db: AsyncSession, user: User) -> list[ShopItemOut]:
     owned = set(await db.scalars(select(OwnedItem.item_key).where(OwnedItem.user_id == user.id)))
+    # Event-only items are never for sale; they appear only once you've earned them.
     return [
         ShopItemOut(
-            key=c["key"], slot=c["slot"], value=c["value"], name=c["name"], price=c["price"], owned=c["price"] == 0 or c["key"] in owned
+            key=c["key"],
+            slot=c["slot"],
+            value=c["value"],
+            name=c["name"],
+            price=c["price"],
+            owned=is_free_item(c) or c["key"] in owned,
+            event_only=bool(c.get("event_only")),
         )
         for c in COSMETICS
+        if not c.get("event_only") or c["key"] in owned
     ]
 
 
@@ -75,6 +83,8 @@ async def buy(db: AsyncSession, user: User, item_key: str) -> int:
     item = COSMETICS_BY_KEY.get(item_key)
     if item is None:
         raise NotFound("That item isn't available.", code="item_not_found")
+    if item.get("event_only"):
+        raise Forbidden("This item can only be earned during its event.", code="item_event_only")
     if item["price"] == 0:
         return user.profile.gems
     if await db.scalar(select(OwnedItem.id).where(OwnedItem.user_id == user.id, OwnedItem.item_key == item_key)):
