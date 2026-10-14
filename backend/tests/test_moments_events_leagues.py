@@ -5,14 +5,18 @@ from sqlalchemy import func, select
 
 from app.core import database
 from app.core.store import get_store
-from app.models import CommunityMember, GameSession, Moment, OwnedItem, Profile
+from app.models import CommunityMember, Moment, OwnedItem, Profile
 from app.services import account, events, rewards, rooms
 from tests.conftest import befriend, make_user
 
 
 # ----- helpers -----
 async def _finish_game(client, host: dict, others: list[dict], room_id: str | None = None) -> str:
-    body = {"game_type": "trivia", "rounds": 1}
+    """Play a real game to the end by always taking the first legal action."""
+    game_type = "four_in_a_row" if len(others) == 1 else "truth_or_dare"
+    body: dict = {"game_type": game_type}
+    if game_type == "truth_or_dare":
+        body["options"] = {"rounds": 1}
     if room_id:
         body["room_id"] = room_id
     r = await client.post("/games", json=body, headers=host["headers"])
@@ -21,18 +25,22 @@ async def _finish_game(client, host: dict, others: list[dict], room_id: str | No
     for p in others:
         await client.post(f"/games/{game['id']}/join", headers=p["headers"])
     assert (await client.post(f"/games/{game['id']}/start", headers=host["headers"])).status_code == 200
-    for _ in range(8):
-        async with database.session_factory()() as db:
-            g = await db.get(GameSession, uuid.UUID(game["id"]))
-            state = dict(g.state)
-            for key in ("phase_started_at", "phase_ends_at"):
-                if state.get(key):
-                    state[key] = (datetime.fromisoformat(state[key]) - timedelta(seconds=60)).isoformat()
-            g.state = state
-            await db.commit()
-        view = (await client.get(f"/games/{game['id']}", headers=host["headers"])).json()
-        if view["status"] == "finished":
-            return game["id"]
+    players = [host, *others]
+    for _ in range(200):
+        progressed = False
+        for p in players:
+            view = (await client.get(f"/games/{game['id']}", headers=p["headers"])).json()
+            if view["status"] == "finished":
+                return game["id"]
+            if view["legal_actions"]:
+                r = await client.post(
+                    f"/games/{game['id']}/action",
+                    json={"action": view["legal_actions"][0], "version": view["version"]},
+                    headers=p["headers"],
+                )
+                assert r.status_code == 200, r.text
+                progressed = True
+        assert progressed, "nobody could move"
     raise AssertionError("game did not finish")
 
 
@@ -58,7 +66,7 @@ async def test_game_finish_creates_private_moments(client):
     mine = [m for m in await _moments(client, host) if m["kind"] == "game_finished"]
     assert len(mine) == 1
     stats = mine[0]["stats"]
-    assert stats["players"] == 2 and stats["game_type"] == "trivia" and stats["rank"] in (1, 2)
+    assert stats["players"] == 2 and stats["game_type"] == "four_in_a_row" and stats["rank"] in (1, 2)
     # No other person's identity anywhere in my moments.
     text = (await client.get("/moments", headers=host["headers"])).text
     assert p2["id"] not in text and p2["username"] not in text

@@ -7,8 +7,6 @@ Protocol (JSON messages):
   client -> {"type": "subscribe", "channel": "room:<id>" | "game:<id>"}
   client -> {"type": "unsubscribe", "channel": "..."}
   client -> {"type": "typing", "conversation_id": "...", "is_typing": true}
-  client -> {"type": "draw", "session_id": "...", "stroke": {...}}   doodle artist only
-  client -> {"type": "draw_clear", "session_id": "..."}             doodle artist only
 Server events are documented in docs/realtime.md.
 """
 
@@ -26,12 +24,11 @@ from app.models import GameSession, User
 from app.services import games, messaging, rooms
 from app.services.rate_limit import hit
 from app.services.users import friend_ids, mark_offline, mark_online
-from app.websocket.hub import Connection, hub, publish, publish_user
+from app.websocket.hub import Connection, hub, publish_user
 
 router = APIRouter()
 
 MAX_MESSAGE_BYTES = 16_000
-MAX_STROKE_POINTS = 400
 
 
 async def _receive_json(ws: WebSocket, timeout: float | None = None) -> dict:
@@ -51,20 +48,6 @@ async def _broadcast_presence(user_id: uuid.UUID, online: bool) -> None:
             return
         for fid in await friend_ids(db, user_id):
             await publish_user(fid, "presence.updated", {"user_id": str(user_id), "online": online})
-
-
-def _valid_stroke(stroke: object) -> bool:
-    if not isinstance(stroke, dict):
-        return False
-    points = stroke.get("points")
-    if not isinstance(points, list) or not points or len(points) > MAX_STROKE_POINTS:
-        return False
-    for p in points:
-        if not (isinstance(p, list) and len(p) == 2 and all(isinstance(v, (int, float)) and 0 <= v <= 1 for v in p)):
-            return False
-    color = stroke.get("color", "#000000")
-    width = stroke.get("width", 4)
-    return isinstance(color, str) and len(color) <= 9 and color.startswith("#") and isinstance(width, (int, float)) and 1 <= width <= 40
 
 
 @router.websocket("/api/v1/ws")
@@ -124,8 +107,7 @@ async def _handle(conn: Connection, msg: dict) -> None:
         return
 
     try:
-        # Doodle strokes stream quickly, so they get their own (higher) budget.
-        await hit("ws_draw" if kind in ("draw", "draw_clear") else "ws_event", str(conn.user_id))
+        await hit("ws_event", str(conn.user_id))
     except AppError:
         await conn.send({"type": "error", "code": "rate_limited"})
         return
@@ -155,19 +137,6 @@ async def _handle(conn: Connection, msg: dict) -> None:
                 hub.leave(conn, str(msg.get("channel", "")))
             elif kind == "typing":
                 await messaging.typing(db, user, uuid.UUID(str(msg.get("conversation_id"))), bool(msg.get("is_typing")))
-            elif kind in ("draw", "draw_clear"):
-                session_id = uuid.UUID(str(msg.get("session_id")))
-                if not await games.can_draw(db, user.id, session_id):
-                    raise AppError("Not your turn", code="not_drawer")
-                if kind == "draw":
-                    stroke = msg.get("stroke")
-                    if not _valid_stroke(stroke):
-                        raise AppError("Invalid stroke", code="bad_stroke")
-                    await publish(
-                        f"game:{session_id}", "game.stroke", {"session_id": str(session_id), "stroke": stroke}, exclude_user=user.id
-                    )
-                else:
-                    await publish(f"game:{session_id}", "game.clear", {"session_id": str(session_id)}, exclude_user=user.id)
             else:
                 await conn.send({"type": "error", "code": "unknown_type"})
         except (AppError, ValueError) as exc:

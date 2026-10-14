@@ -3,18 +3,33 @@ import uuid
 from fastapi import APIRouter, Query
 
 from app.api.dependencies import DB, ActiveUser
+from app.games import ENGINES
 from app.schemas.common import Ok
-from app.schemas.games import AnswerResult, DoodleGuessIn, GameCreateIn, GameView, GuessResult, TriviaAnswerIn
+from app.schemas.games import GameActionIn, GameCreateIn, GameView
 from app.services import games
 from app.services.rate_limit import hit
 
 router = APIRouter(prefix="/games", tags=["games"])
 
+CATALOG = {
+    "chess": {"name": "Chess", "tagline": "The classic strategy game"},
+    "ludo": {"name": "Ludo", "tagline": "Race your tokens home"},
+    "crazy_eights": {"name": "Crazy Eights", "tagline": "Fast card game — eights are wild"},
+    "four_in_a_row": {"name": "Four in a Row", "tagline": "Line up four to win"},
+    "truth_or_dare": {"name": "Truth or Dare", "tagline": "Safe, fun prompts for friends"},
+    "werewolf": {"name": "Werewolf", "tagline": "Find the wolves before it's too late"},
+}
+
+
+@router.get("/catalog")
+async def catalog():
+    return [{"key": k, **CATALOG[k], "min_players": e.min_players, "max_players": e.max_players} for k, e in ENGINES.items()]
+
 
 @router.post("", response_model=GameView, status_code=201)
 async def create(body: GameCreateIn, user: ActiveUser, db: DB):
     await hit("game_create", str(user.id))
-    game = await games.create_game(db, user, body.game_type, body.room_id, body.rounds)
+    game = await games.create_game(db, user, body.game_type, body.room_id, body.options)
     return await games.view(db, user, game.id)
 
 
@@ -58,12 +73,7 @@ async def start(game_id: uuid.UUID, user: ActiveUser, db: DB):
     return await games.start_game(db, user, game_id)
 
 
-@router.post("/{game_id}/answer", response_model=AnswerResult)
-async def answer(game_id: uuid.UUID, body: TriviaAnswerIn, user: ActiveUser, db: DB):
-    return AnswerResult(accepted=await games.submit_trivia(db, user, game_id, body.round_index, body.choice))
-
-
-@router.post("/{game_id}/guess", response_model=GuessResult)
-async def guess(game_id: uuid.UUID, body: DoodleGuessIn, user: ActiveUser, db: DB):
-    await hit("guess", str(user.id))
-    return await games.submit_guess(db, user, game_id, body.round_index, body.guess)
+@router.post("/{game_id}/action", response_model=GameView)
+async def action(game_id: uuid.UUID, body: GameActionIn, user: ActiveUser, db: DB):
+    await hit("game_action", str(user.id))
+    return await games.act(db, user, game_id, body.action, body.version)

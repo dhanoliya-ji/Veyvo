@@ -18,7 +18,14 @@ from app.schemas.moments import MomentOut
 
 STREAK_MILESTONES = (3, 7, 14, 30, 50, 100)
 ROOM_MOMENT_MIN_SECONDS = 5 * 60
-GAME_NAMES = {"trivia": "Trivia", "doodle": "Doodle & Guess"}
+GAME_NAMES = {
+    "chess": "Chess",
+    "ludo": "Ludo",
+    "crazy_eights": "Crazy Eights",
+    "four_in_a_row": "Four in a Row",
+    "truth_or_dare": "Truth or Dare",
+    "werewolf": "Werewolf",
+}
 
 
 async def record(db: AsyncSession, user_id: uuid.UUID, kind: str, title: str, stats: dict, *, key: str) -> Moment | None:

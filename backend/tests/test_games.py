@@ -1,137 +1,98 @@
-from datetime import timedelta
+"""Game sessions on top of the rule engines: lobby, turns, secrets, rewards and access."""
 
-from app.content.games import TRIVIA
-from app.core import database
-from app.models import GameSession
 from tests.conftest import make_user
 
 
-async def _shift_clock(game_id: str, seconds: float) -> None:
-    """Move all game deadlines into the past, as if `seconds` had elapsed."""
-    import uuid
-    from datetime import datetime
-
-    async with database.session_factory()() as db:
-        game = await db.get(GameSession, uuid.UUID(game_id))
-        state = dict(game.state)
-        for key in ("phase_started_at", "phase_ends_at"):
-            if state.get(key):
-                state[key] = (datetime.fromisoformat(state[key]) - timedelta(seconds=seconds)).isoformat()
-        game.state = state
-        await db.commit()
+async def _lobby(client, host, others, game_type, **extra):
+    game = (await client.post("/games", json={"game_type": game_type, **extra}, headers=host["headers"])).json()
+    for p in others:
+        r = await client.post(f"/games/{game['id']}/join", headers=p["headers"])
+        assert r.status_code == 200, r.text
+    return game
 
 
-async def _secret_state(game_id: str) -> dict:
-    import uuid
-
-    async with database.session_factory()() as db:
-        return (await db.get(GameSession, uuid.UUID(game_id))).state
+async def test_catalog_lists_real_games(client):
+    names = {g["key"] for g in (await client.get("/games/catalog")).json()}
+    assert names == {"chess", "ludo", "crazy_eights", "four_in_a_row", "truth_or_dare", "werewolf"}
 
 
-async def test_trivia_full_flow_server_scoring(client):
-    host, p2 = await make_user(client), await make_user(client)
-    game = (await client.post("/games", json={"game_type": "trivia", "rounds": 2}, headers=host["headers"])).json()
-    assert game["status"] == "lobby"
-    joined = (await client.post("/games/join-by-code", params={"code": game["code"].lower()}, headers=p2["headers"])).json()
-    assert len(joined["players"]) == 2
-    # Only the host can start.
-    assert (await client.post(f"/games/{game['id']}/start", headers=p2["headers"])).status_code == 403
-    started = (await client.post(f"/games/{game['id']}/start", headers=host["headers"])).json()
-    assert started["round"]["phase"] == "countdown"
-    assert started["round"]["question"] is None  # not visible during countdown
+async def test_chess_turns_illegal_moves_and_stale_versions(client):
+    white, black = await make_user(client), await make_user(client)
+    game = await _lobby(client, white, [black], "chess")
+    assert (await client.post(f"/games/{game['id']}/start", headers=black["headers"])).status_code == 403  # host only
+    started = (await client.post(f"/games/{game['id']}/start", headers=white["headers"])).json()
+    assert started["status"] == "active" and started["board"]["fen"].startswith("rnbqkbnr")
+    assert started["legal_actions"]  # white to move
 
-    # Answers before the question opens are rejected.
-    r = await client.post(f"/games/{game['id']}/answer", json={"round_index": 0, "choice": 0}, headers=host["headers"])
-    assert r.status_code == 409
+    # Black can't move first, and illegal moves are rejected.
+    r = await client.post(
+        f"/games/{game['id']}/action", json={"action": {"type": "move", "from": "e7", "to": "e5"}}, headers=black["headers"]
+    )
+    assert r.status_code == 422
+    r = await client.post(
+        f"/games/{game['id']}/action", json={"action": {"type": "move", "from": "e2", "to": "e5"}}, headers=white["headers"]
+    )
+    assert r.status_code == 422
 
-    await _shift_clock(game["id"], 4)
-    view = (await client.get(f"/games/{game['id']}", headers=host["headers"])).json()
-    assert view["round"]["phase"] == "question"
-    assert view["round"]["correct_index"] is None  # never leaked while open
+    v = started["version"]
+    ok = await client.post(
+        f"/games/{game['id']}/action", json={"action": {"type": "move", "from": "e2", "to": "e4"}, "version": v}, headers=white["headers"]
+    )
+    assert ok.status_code == 200
+    # A double tap with the old version is rejected instead of applied twice.
+    dup = await client.post(
+        f"/games/{game['id']}/action", json={"action": {"type": "move", "from": "d2", "to": "d4"}, "version": v}, headers=white["headers"]
+    )
+    assert dup.status_code == 409
 
-    state = await _secret_state(game["id"])
-    correct = TRIVIA[state["order"][0]]["a"]
-    r = await client.post(f"/games/{game['id']}/answer", json={"round_index": 0, "choice": correct}, headers=host["headers"])
-    assert r.status_code == 200
-    # Duplicate submission rejected.
-    r = await client.post(f"/games/{game['id']}/answer", json={"round_index": 0, "choice": correct}, headers=host["headers"])
-    assert r.status_code == 409
-    wrong = (correct + 1) % 4
-    await client.post(f"/games/{game['id']}/answer", json={"round_index": 0, "choice": wrong}, headers=p2["headers"])
-
-    # Everyone answered -> phase closes early and the answer is revealed.
-    view = (await client.get(f"/games/{game['id']}", headers=p2["headers"])).json()
-    assert view["round"]["phase"] == "reveal"
-    assert view["round"]["correct_index"] == correct
-    scores = {p["id"]: p["score"] for p in view["players"]}
-    assert scores[host["id"]] >= 500
-    assert scores[p2["id"]] == 0
-
-    # Run out the clock through round 2 to the end.
-    for _ in range(6):
-        await _shift_clock(game["id"], 30)
-        view = (await client.get(f"/games/{game['id']}", headers=host["headers"])).json()
-        if view["status"] == "finished":
-            break
-    assert view["status"] == "finished"
-    # Rewards granted once, and replays don't double them.
-    me = (await client.get("/me", headers=host["headers"])).json()
-    gems_after = me["gems"]
-    await client.get(f"/games/{game['id']}", headers=host["headers"])
-    assert (await client.get("/me", headers=host["headers"])).json()["gems"] == gems_after
-    quests = {q["key"]: q for q in (await client.get("/quests", headers=host["headers"])).json()}
-    assert quests["play_game"]["progress"] == 1
+    # Resign ends the game and awards rewards once.
+    before = (await client.get("/me", headers=black["headers"])).json()["gems"]
+    r = await client.post(f"/games/{game['id']}/action", json={"action": {"type": "resign"}}, headers=white["headers"])
+    assert r.json()["status"] == "finished" and r.json()["results"]
+    after = (await client.get("/me", headers=black["headers"])).json()["gems"]
+    # Black won: 10 for playing + 15 for winning (+5 if this was their first activity today).
+    assert after - before in (25, 30)
 
 
-async def test_client_cannot_submit_score_or_late_answers(client):
-    host = await make_user(client)
-    game = (await client.post("/games", json={"game_type": "trivia", "rounds": 1}, headers=host["headers"])).json()
-    await client.post(f"/games/{game['id']}/start", headers=host["headers"])
-    await _shift_clock(game["id"], 4)
-    # Wrong round index is rejected; there is no way to send a score.
-    r = await client.post(f"/games/{game['id']}/answer", json={"round_index": 3, "choice": 0, "points": 99999}, headers=host["headers"])
-    assert r.status_code == 409
-    await _shift_clock(game["id"], 16)  # question closed
-    r = await client.post(f"/games/{game['id']}/answer", json={"round_index": 0, "choice": 0}, headers=host["headers"])
-    assert r.status_code == 409
+async def test_crazy_eights_hides_other_hands(client):
+    a, b, c = await make_user(client), await make_user(client), await make_user(client)
+    game = await _lobby(client, a, [b, c], "crazy_eights")
+    await client.post(f"/games/{game['id']}/start", headers=a["headers"])
+    vb = (await client.get(f"/games/{game['id']}", headers=b["headers"])).json()["board"]
+    # B sees their own hand, and only card *counts* for everyone else.
+    assert isinstance(vb.get("hand"), list) and vb["hand"]
+    others = {k: v for k, v in vb.items() if k not in ("hand",)}
+    assert "hands" not in others and "deck" not in others
 
 
-async def test_doodle_word_secret_and_guessing(client):
-    host, p2 = await make_user(client), await make_user(client)
-    game = (await client.post("/games", json={"game_type": "doodle", "rounds": 2}, headers=host["headers"])).json()
-    # Needs 2 players.
-    assert (await client.post(f"/games/{game['id']}/start", headers=host["headers"])).status_code == 409
-    await client.post(f"/games/{game['id']}/join", headers=p2["headers"])
-    await client.post(f"/games/{game['id']}/start", headers=host["headers"])
-    await _shift_clock(game["id"], 5)
-
-    state = await _secret_state(game["id"])
-    drawer_id = state["drawers"][0]
-    word = state["words"][0]
-    drawer, guesser = (host, p2) if drawer_id == host["id"] else (p2, host)
-
-    drawer_view = (await client.get(f"/games/{game['id']}", headers=drawer["headers"])).json()
-    guesser_view = (await client.get(f"/games/{game['id']}", headers=guesser["headers"])).json()
-    assert drawer_view["round"]["word"] == word
-    assert guesser_view["round"]["word"] is None
-    # The secret word must not appear in any value the guesser receives (keys like "category" are fine).
-    assert all(word not in str(v) for v in guesser_view["round"].values())
-
-    assert (
-        await client.post(f"/games/{game['id']}/guess", json={"round_index": 0, "guess": word}, headers=drawer["headers"])
-    ).status_code == 403
-    r = await client.post(f"/games/{game['id']}/guess", json={"round_index": 0, "guess": "definitely-not-it"}, headers=guesser["headers"])
-    assert r.json()["correct"] is False
-    r = await client.post(f"/games/{game['id']}/guess", json={"round_index": 0, "guess": word.upper()}, headers=guesser["headers"])
-    assert r.json()["correct"] is True
-    assert r.json()["points"] > 0
-    r = await client.post(f"/games/{game['id']}/guess", json={"round_index": 0, "guess": word}, headers=guesser["headers"])
-    assert r.status_code == 409  # round closed (everyone guessed) or already guessed
+async def test_werewolf_roles_are_secret(client):
+    players = [await make_user(client) for _ in range(5)]
+    game = await _lobby(client, players[0], players[1:], "werewolf")
+    await client.post(f"/games/{game['id']}/start", headers=players[0]["headers"])
+    for p in players:
+        board = (await client.get(f"/games/{game['id']}", headers=p["headers"])).json()["board"]
+        visible = {k: v for k, v in (board.get("roles") or {}).items() if v}
+        # At most yourself plus (for a wolf) the fellow wolf; never the whole village.
+        assert len(visible) <= 2
 
 
-async def test_room_games_require_room_access(client):
+async def test_late_join_full_and_leave_finishes(client):
+    a, b, c = await make_user(client), await make_user(client), await make_user(client)
+    game = await _lobby(client, a, [b], "four_in_a_row")
+    assert (await client.post(f"/games/{game['id']}/join", headers=c["headers"])).status_code == 409  # 2-player game is full
+    await client.post(f"/games/{game['id']}/start", headers=a["headers"])
+    assert (await client.post(f"/games/{game['id']}/join", headers=c["headers"])).status_code == 409  # already started
+    await client.post(f"/games/{game['id']}/leave", headers=b["headers"])
+    v = (await client.get(f"/games/{game['id']}", headers=a["headers"])).json()
+    assert v["status"] == "finished"
+
+
+async def test_not_enough_players_and_room_access(client):
     host, outsider = await make_user(client), await make_user(client)
+    game = (await client.post("/games", json={"game_type": "ludo"}, headers=host["headers"])).json()
+    assert (await client.post(f"/games/{game['id']}/start", headers=host["headers"])).status_code == 409
     room = (await client.post("/rooms", json={"title": "Game night", "visibility": "private"}, headers=host["headers"])).json()
-    game = (await client.post("/games", json={"game_type": "trivia", "room_id": room["id"]}, headers=host["headers"])).json()
-    assert (await client.post(f"/games/{game['id']}/join", headers=outsider["headers"])).status_code == 403
-    assert (await client.get(f"/games/{game['id']}", headers=outsider["headers"])).status_code == 403
+    g2 = (await client.post("/games", json={"game_type": "chess", "room_id": room["id"]}, headers=host["headers"])).json()
+    assert (await client.post(f"/games/{g2['id']}/join", headers=outsider["headers"])).status_code == 403
+    assert (await client.get(f"/games/{g2['id']}", headers=outsider["headers"])).status_code == 403
+    assert (await client.post("/games", json={"game_type": "trivia"}, headers=host["headers"])).status_code == 422
