@@ -13,3 +13,4 @@ argon2-cffi>=23.1
 httpx>=0.27
 python-multipart>=0.0.9
 livekit-api>=1.0
+cryptography>=43

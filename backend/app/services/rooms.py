@@ -229,6 +229,11 @@ async def room_detail(db: AsyncSession, room: Room, user: User) -> RoomDetail:
 async def create_room(db: AsyncSession, user: User, data: RoomIn) -> Room:
     if data.interest_id is not None and await db.get(Interest, data.interest_id) is None:
         raise AppError("Unknown topic.", code="invalid_interest", status_code=422)
+    from app.services.monetization import room_capacity_limit
+
+    limit = room_capacity_limit(user.profile)
+    if data.capacity > limit:
+        raise AppError(f"Rooms can hold up to {limit} people.", code="capacity_limit", status_code=422)
     if data.scene not in FREE_SCENES:
         item = item_for_value("scene", data.scene)
         owned = await db.scalar(select(OwnedItem.id).where(OwnedItem.user_id == user.id, OwnedItem.item_key == (item or {}).get("key")))

@@ -44,6 +44,19 @@ class Settings(BaseSettings):
     expo_push_access_token: str = ""
 
     max_room_capacity: int = 50
+    plus_room_capacity: int = 100
+
+    # Rewarded ads (AdMob). Gems are granted only via AdMob server-side verification (SSV).
+    admob_enabled: bool = False
+    ad_reward_gems: int = 20
+    ad_daily_reward_cap: int = 5
+
+    # Google Play Billing. Purchases are verified with the Play Developer API using a service account.
+    google_play_package: str = "app.veyvo"
+    # Path to the service-account JSON file, or the JSON itself.
+    google_play_service_account: str = ""
+    # Shared secret appended to the Pub/Sub push URL for Real-time Developer Notifications.
+    google_rtdn_token: str = ""
     max_message_length: int = 2000
 
     @field_validator("cors_origins", mode="before")
@@ -60,6 +73,10 @@ class Settings(BaseSettings):
     @property
     def expose_codes(self) -> bool:
         return self.app_env in ("development", "test") and self.dev_expose_codes
+
+    @property
+    def billing_configured(self) -> bool:
+        return bool(self.google_play_service_account)
 
     @property
     def media_configured(self) -> bool:

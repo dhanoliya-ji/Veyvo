@@ -151,7 +151,7 @@ class RoomIn(ApiModel):
     @field_validator("capacity")
     @classmethod
     def _capacity(cls, v: int) -> int:
-        cap = get_settings().max_room_capacity
+        cap = get_settings().plus_room_capacity
         if v > cap:
             raise ValueError(f"Rooms can hold up to {cap} people.")
         return v

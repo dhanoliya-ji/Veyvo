@@ -61,6 +61,7 @@ async def build_me(db: AsyncSession, user: User) -> MeOut:
         interests=[InterestOut.model_validate(i) for i in interests],
         privacy=PrivacyOut.model_validate(privacy),
         onboarded=profile.onboarded_at is not None,
+        plus_active=bool(profile.plus_until and profile.plus_until > utcnow()),
         xp=profile.xp,
         level=level_for_xp(profile.xp),
         level_progress=level_progress(profile.xp),

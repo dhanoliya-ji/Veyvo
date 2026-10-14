@@ -298,3 +298,36 @@ class Moment(Base):
     # Makes creation exactly-once per source event (NULLs never collide).
     dedupe_key: Mapped[str | None] = mapped_column(String(120), unique=True)
     created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow, index=True)
+
+
+class AdRewardSession(Base):
+    """One rewarded-ad attempt. Gems are granted only when Google's signed SSV callback arrives."""
+
+    __tablename__ = "ad_reward_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    nonce: Mapped[str] = mapped_column(String(64), unique=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | granted
+    transaction_id: Mapped[str | None] = mapped_column(String(128), unique=True)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    granted_at: Mapped[datetime | None] = mapped_column(TZDateTime(), index=True)
+
+
+class StorePurchase(Base):
+    """A Google Play purchase verified server-side. The token hash makes every grant exactly-once."""
+
+    __tablename__ = "store_purchases"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    platform: Mapped[str] = mapped_column(String(20), default="google")
+    product_id: Mapped[str] = mapped_column(String(80))
+    kind: Mapped[str] = mapped_column(String(20))  # consumable | subscription
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    purchase_token: Mapped[str] = mapped_column(Text)
+    order_id: Mapped[str | None] = mapped_column(String(128))
+    state: Mapped[str] = mapped_column(String(40))
+    expires_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow, onupdate=utcnow)

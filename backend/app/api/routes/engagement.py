@@ -58,8 +58,8 @@ async def app_config():
         "reactions": REACTIONS,
         "kudos_tags": KUDOS_TAGS,
         "report_reasons": REPORT_REASONS,
-        "purchases_available": False,
-        "ads_enabled": False,
+        "purchases_available": settings.billing_configured,
+        "ads_enabled": settings.admob_enabled,
     }
 
 

@@ -77,6 +77,8 @@ class Profile(TimestampMixin, Base):
     streak_freezes: Mapped[int] = mapped_column(Integer, default=1)
     streak_last_date: Mapped[date | None] = mapped_column(Date)
     onboarded_at: Mapped[datetime | None] = mapped_column(TZDateTime())
+    # Veyvo Plus entitlement, set only from a server-verified Google Play subscription.
+    plus_until: Mapped[datetime | None] = mapped_column(TZDateTime())
 
     user: Mapped[User] = relationship(back_populates="profile")
 

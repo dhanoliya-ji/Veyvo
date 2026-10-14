@@ -29,6 +29,8 @@ LIMITS: dict[str, tuple[int, int]] = {
     "ws_draw": (450, 30),
     "export": (3, 86400),
     "post": (10, 600),
+    "purchase": (30, 3600),
+    "ad_reward": (20, 3600),
 }
 
 

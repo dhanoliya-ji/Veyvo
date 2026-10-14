@@ -138,6 +138,7 @@ class MeOut(ApiModel):
     interests: list[InterestOut]
     privacy: PrivacyOut
     onboarded: bool
+    plus_active: bool = False
     xp: int
     level: int
     level_progress: float

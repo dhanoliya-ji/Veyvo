@@ -1,4 +1,5 @@
 from app.models.social import (
+    AdRewardSession,
     Community,
     CommunityMember,
     CommunityPoints,
@@ -20,6 +21,7 @@ from app.models.social import (
     Room,
     RoomMember,
     RoomMessage,
+    StorePurchase,
 )
 from app.models.user import (
     AuthSession,
@@ -39,6 +41,8 @@ from app.models.user import (
 )
 
 __all__ = [
+    "AdRewardSession",
+    "StorePurchase",
     "AuthSession",
     "Block",
     "Community",
