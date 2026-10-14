@@ -1,8 +1,9 @@
 {
-  "name": "mobile",
+  "name": "veyvo",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "dependencies": {
+    "@config-plugins/react-native-webrtc": "^15.0.2",
     "@expo-google-fonts/inter": "^0.4.2",
     "@hookform/resolvers": "^5.9.1",
     "@livekit/react-native": "^3.0.0",
@@ -49,7 +50,10 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "lint": "expo lint",
+    "test": "jest"
   },
   "private": true
 }
