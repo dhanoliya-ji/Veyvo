@@ -52,8 +52,18 @@ SCENES = ["cafe", "campfire", "library", "rooftop", "beach", "space"]
 FREE_SCENES = {"cafe", "campfire", "library", "rooftop"}
 
 ROOM_CATEGORIES = [
-    "just-chatting", "gaming", "study", "music", "movies", "books", "football",
-    "language-exchange", "technology", "art", "fitness", "deep-talks",
+    "just-chatting",
+    "gaming",
+    "study",
+    "music",
+    "movies",
+    "books",
+    "football",
+    "language-exchange",
+    "technology",
+    "art",
+    "fitness",
+    "deep-talks",
 ]
 
 VIBES = ["down_to_chat", "studying", "listening", "gaming", "busy"]

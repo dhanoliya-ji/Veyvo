@@ -14,7 +14,10 @@ router = APIRouter(prefix="/communities", tags=["communities"])
 
 @router.get("", response_model=list[CommunityOut])
 async def list_communities(
-    user: ActiveUser, db: DB, mine: bool = False, interest_id: int | None = None,
+    user: ActiveUser,
+    db: DB,
+    mine: bool = False,
+    interest_id: int | None = None,
     q: str | None = Query(default=None, max_length=60),
 ):
     return await communities.list_communities(db, user, mine=mine, interest_id=interest_id, q=q)
@@ -56,7 +59,10 @@ async def members(community_id: uuid.UUID, user: ActiveUser, db: DB, status: Lit
 
 @router.post("/{community_id}/members/{user_id}", response_model=Ok)
 async def manage_member(
-    community_id: uuid.UUID, user_id: uuid.UUID, user: ActiveUser, db: DB,
+    community_id: uuid.UUID,
+    user_id: uuid.UUID,
+    user: ActiveUser,
+    db: DB,
     action: Literal["approve", "remove", "ban", "make_moderator", "make_member"] = Query(),
 ):
     await communities.manage_member(db, user, await communities.get_community(db, community_id), user_id, action)

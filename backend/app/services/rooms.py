@@ -94,7 +94,9 @@ def timer_view(room: Room) -> TimerState | None:
     focus, brk = timer.get("focus_minutes", 25), timer.get("break_minutes", 5)
     started = datetime.fromisoformat(timer["phase_started_at"]) if timer.get("phase_started_at") and phase != "idle" else None
     ends = started + timedelta(minutes=focus if phase == "focus" else brk) if started else None
-    return TimerState(phase=phase, focus_minutes=focus, break_minutes=brk, phase_started_at=started, phase_ends_at=ends, cycle=timer.get("cycle", 1))
+    return TimerState(
+        phase=phase, focus_minutes=focus, break_minutes=brk, phase_started_at=started, phase_ends_at=ends, cycle=timer.get("cycle", 1)
+    )
 
 
 # ----- Access -----
@@ -138,20 +140,33 @@ def _can_speak(room: Room, member: RoomMember | None, user: User) -> bool:
 
 
 # ----- Views -----
-async def room_out(db: AsyncSession, room: Room, viewer: User, *, friends: set[uuid.UUID] | None = None, present: list[uuid.UUID] | None = None) -> RoomOut:
+async def room_out(
+    db: AsyncSession, room: Room, viewer: User, *, friends: set[uuid.UUID] | None = None, present: list[uuid.UUID] | None = None
+) -> RoomOut:
     present = present if present is not None else await present_ids(room.id)
     friends = friends if friends is not None else await friend_ids(db, viewer.id)
     people = await summaries(db, ([room.host_id] if room.host_id else []) + present[:5])
     member = await _member(db, room.id, viewer.id)
     return RoomOut(
-        id=room.id, title=room.title, description=room.description, kind=room.kind, format=room.format,
-        visibility=room.visibility, scene=room.scene, interest_id=room.interest_id, community_id=room.community_id,
-        capacity=room.capacity, status=room.status, open_mic=room.open_mic,
+        id=room.id,
+        title=room.title,
+        description=room.description,
+        kind=room.kind,
+        format=room.format,
+        visibility=room.visibility,
+        scene=room.scene,
+        interest_id=room.interest_id,
+        community_id=room.community_id,
+        capacity=room.capacity,
+        status=room.status,
+        open_mic=room.open_mic,
         host=people.get(room.host_id) if room.host_id else None,
         participant_count=len(present),
         participants_preview=[people[p] for p in present[:5] if p in people],
         friends_inside=len(friends & set(present)),
-        scheduled_for=room.scheduled_for, started_at=room.started_at, created_at=room.created_at,
+        scheduled_for=room.scheduled_for,
+        started_at=room.started_at,
+        created_at=room.created_at,
         my_role=member.role if member else None,
         timer=timer_view(room),
     )
@@ -162,7 +177,11 @@ async def room_detail(db: AsyncSession, room: Room, user: User) -> RoomDetail:
     present = await present_ids(room.id)
     friends = await friend_ids(db, user.id)
     base = await room_out(db, room, user, friends=friends, present=present)
-    members = {m.user_id: m for m in await db.scalars(select(RoomMember).where(RoomMember.room_id == room.id, RoomMember.user_id.in_(present)))} if present else {}
+    members = (
+        {m.user_id: m for m in await db.scalars(select(RoomMember).where(RoomMember.room_id == room.id, RoomMember.user_id.in_(present)))}
+        if present
+        else {}
+    )
     people = await summaries(db, present)
     blocked = await blocked_ids(db, user.id)
     participants = []
@@ -182,8 +201,11 @@ async def room_detail(db: AsyncSession, room: Room, user: User) -> RoomDetail:
     order = {"host": 0, "moderator": 1, "speaker": 2, "listener": 3}
     participants.sort(key=lambda p: order.get(p.role, 4))
     return RoomDetail(
-        **base.model_dump(), participants=participants, rules=ROOM_RULES,
-        can_speak=_can_speak(room, member, user), can_moderate=_can_moderate(room, member, user),
+        **base.model_dump(),
+        participants=participants,
+        rules=ROOM_RULES,
+        can_speak=_can_speak(room, member, user),
+        can_moderate=_can_moderate(room, member, user),
         media_available=get_settings().media_configured,
     )
 
@@ -210,13 +232,23 @@ async def create_room(db: AsyncSession, user: User, data: RoomIn) -> Room:
     if data.scheduled_for and data.scheduled_for > now + timedelta(days=30):
         raise AppError("You can schedule up to 30 days ahead.", code="invalid_schedule", status_code=422)
     room = Room(
-        host_id=user.id, community_id=data.community_id, title=data.title, description=data.description,
-        kind=data.kind, format=data.format, visibility=data.visibility, scene=data.scene,
-        interest_id=data.interest_id, capacity=data.capacity, open_mic=data.open_mic,
+        host_id=user.id,
+        community_id=data.community_id,
+        title=data.title,
+        description=data.description,
+        kind=data.kind,
+        format=data.format,
+        visibility=data.visibility,
+        scene=data.scene,
+        interest_id=data.interest_id,
+        capacity=data.capacity,
+        open_mic=data.open_mic,
         status="scheduled" if scheduled else "live",
         scheduled_for=data.scheduled_for if scheduled else None,
         started_at=None if scheduled else now,
-        timer={"phase": "idle", "focus_minutes": data.focus_minutes, "break_minutes": data.break_minutes, "cycle": 1} if data.kind == "study" else {},
+        timer={"phase": "idle", "focus_minutes": data.focus_minutes, "break_minutes": data.break_minutes, "cycle": 1}
+        if data.kind == "study"
+        else {},
     )
     db.add(room)
     await db.flush()
@@ -226,8 +258,16 @@ async def create_room(db: AsyncSession, user: User, data: RoomIn) -> Room:
 
 
 async def list_rooms(
-    db: AsyncSession, user: User, *, kind: str | None = None, format_: str | None = None, interest_id: int | None = None,
-    q: str | None = None, status: str = "live", community_id: uuid.UUID | None = None, limit: int = 30,
+    db: AsyncSession,
+    user: User,
+    *,
+    kind: str | None = None,
+    format_: str | None = None,
+    interest_id: int | None = None,
+    q: str | None = None,
+    status: str = "live",
+    community_id: uuid.UUID | None = None,
+    limit: int = 30,
 ) -> list[RoomOut]:
     blocked = await blocked_ids(db, user.id)
     my_rooms = select(RoomMember.room_id).where(RoomMember.user_id == user.id, RoomMember.banned.is_(False))
@@ -314,7 +354,11 @@ async def join_room(db: AsyncSession, user: User, room_id: uuid.UUID) -> RoomDet
         for fid in friends & set(present):
             await rewards.add_friendship_points(db, user.id, fid, 2)
     await db.commit()
-    await publish(f"room:{room.id}", "room.participant_joined", {"room_id": str(room.id), "user": summary(user.profile).model_dump(mode="json"), "role": member.role})
+    await publish(
+        f"room:{room.id}",
+        "room.participant_joined",
+        {"room_id": str(room.id), "user": summary(user.profile).model_dump(mode="json"), "role": member.role},
+    )
     return await room_detail(db, room, user)
 
 
@@ -387,9 +431,17 @@ async def moderate(db: AsyncSession, actor: User, room: Room, target_id: uuid.UU
 
     can_speak = _can_speak(room, target, await db.get(User, target_id)) if action not in ("remove", "ban") else False
     await publish(
-        f"room:{room.id}", "room.participant_updated",
-        {"room_id": str(room.id), "user_id": str(target_id), "action": action, "role": target.role,
-         "muted_by_host": target.muted_by_host, "hand_raised": target.hand_raised, "can_speak": can_speak},
+        f"room:{room.id}",
+        "room.participant_updated",
+        {
+            "room_id": str(room.id),
+            "user_id": str(target_id),
+            "action": action,
+            "role": target.role,
+            "muted_by_host": target.muted_by_host,
+            "hand_raised": target.hand_raised,
+            "can_speak": can_speak,
+        },
     )
     if action in ("remove", "ban"):
         await publish(f"user:{target_id}", "room.removed", {"room_id": str(room.id), "banned": action == "ban"})
@@ -406,7 +458,18 @@ async def set_hand(db: AsyncSession, user: User, room: Room, raised: bool) -> No
         raise AppError("Join the hangout first.", code="not_in_room")
     member.hand_raised = raised
     await db.commit()
-    await publish(f"room:{room.id}", "room.participant_updated", {"room_id": str(room.id), "user_id": str(user.id), "action": "hand", "hand_raised": raised, "role": member.role, "muted_by_host": member.muted_by_host})
+    await publish(
+        f"room:{room.id}",
+        "room.participant_updated",
+        {
+            "room_id": str(room.id),
+            "user_id": str(user.id),
+            "action": "hand",
+            "hand_raised": raised,
+            "role": member.role,
+            "muted_by_host": member.muted_by_host,
+        },
+    )
 
 
 # ----- Chat, reactions, invites -----
@@ -436,13 +499,17 @@ async def recent_chat(db: AsyncSession, user: User, room: Room, limit: int = 50)
     blocked = await blocked_ids(db, user.id)
     rows = list(
         await db.scalars(
-            select(RoomMessage).where(RoomMessage.room_id == room.id, RoomMessage.removed_at.is_(None))
-            .order_by(RoomMessage.created_at.desc()).limit(limit)
+            select(RoomMessage)
+            .where(RoomMessage.room_id == room.id, RoomMessage.removed_at.is_(None))
+            .order_by(RoomMessage.created_at.desc())
+            .limit(limit)
         )
     )
     rows = [r for r in reversed(rows) if r.sender_id not in blocked]
     people = await summaries(db, {r.sender_id for r in rows})
-    return [RoomMessageOut(id=r.id, room_id=r.room_id, sender=people[r.sender_id], content=r.content, created_at=r.created_at) for r in rows]
+    return [
+        RoomMessageOut(id=r.id, room_id=r.room_id, sender=people[r.sender_id], content=r.content, created_at=r.created_at) for r in rows
+    ]
 
 
 async def react(db: AsyncSession, user: User, room: Room, reaction: str) -> None:
@@ -467,7 +534,16 @@ async def invite(db: AsyncSession, user: User, room: Room, target_id: uuid.UUID)
         raise Forbidden("This person can't join this hangout.", code="room_banned")
     if existing is None:
         db.add(RoomMember(room_id=room.id, user_id=target_id, role="invited"))
-    await notify(db, target_id, "room_invite", actor_id=user.id, entity_type="room", entity_id=str(room.id), data={"title": room.title}, group_key=f"room_invite:{room.id}")
+    await notify(
+        db,
+        target_id,
+        "room_invite",
+        actor_id=user.id,
+        entity_type="room",
+        entity_id=str(room.id),
+        data={"title": room.title},
+        group_key=f"room_invite:{room.id}",
+    )
     await db.commit()
 
 
@@ -516,7 +592,16 @@ async def media_token(db: AsyncSession, user: User, room: Room) -> MediaTokenOut
         .with_identity(str(user.id))
         .with_name(user.profile.display_name or user.profile.username or "Veyvo user")
         .with_ttl(timedelta(seconds=ttl))
-        .with_grants(lk.VideoGrants(room_join=True, room=str(room.id), can_publish=can_publish, can_subscribe=True, can_publish_data=True, can_publish_sources=["microphone"]))
+        .with_grants(
+            lk.VideoGrants(
+                room_join=True,
+                room=str(room.id),
+                can_publish=can_publish,
+                can_subscribe=True,
+                can_publish_data=True,
+                can_publish_sources=["microphone"],
+            )
+        )
         .to_jwt()
     )
     return MediaTokenOut(url=settings.livekit_url, token=token, can_publish=can_publish, expires_in=ttl)
@@ -547,7 +632,8 @@ async def _media_set_publish(room_id: uuid.UUID, user_id: uuid.UUID, can_publish
     await _livekit_call(
         "update_participant",
         lk.UpdateParticipantRequest(
-            room=str(room_id), identity=str(user_id),
+            room=str(room_id),
+            identity=str(user_id),
             permission=lk.ParticipantPermission(can_subscribe=True, can_publish=can_publish, can_publish_data=True),
         ),
     )

@@ -14,7 +14,9 @@ async def test_health(client):
 async def test_register_requires_adult_and_stores_no_birth_date(client):
     today = date.today()
     minor = today.replace(year=today.year - 17).isoformat()
-    r = await client.post("/auth/register", json={"email": "kid@example.com", "password": "hangout123", "birth_date": minor, "accept_terms": True})
+    r = await client.post(
+        "/auth/register", json={"email": "kid@example.com", "password": "hangout123", "birth_date": minor, "accept_terms": True}
+    )
     assert r.status_code == 403
     assert r.json()["error"]["code"] == "underage"
 
@@ -29,20 +31,30 @@ async def test_register_requires_adult_and_stores_no_birth_date(client):
 
 
 async def test_register_validation(client):
-    r = await client.post("/auth/register", json={"email": "x@example.com", "password": "short", "birth_date": ADULT_DOB, "accept_terms": True})
+    r = await client.post(
+        "/auth/register", json={"email": "x@example.com", "password": "short", "birth_date": ADULT_DOB, "accept_terms": True}
+    )
     assert r.status_code == 422
-    r = await client.post("/auth/register", json={"email": "x@example.com", "password": "password123", "birth_date": ADULT_DOB, "accept_terms": True})
+    r = await client.post(
+        "/auth/register", json={"email": "x@example.com", "password": "password123", "birth_date": ADULT_DOB, "accept_terms": True}
+    )
     assert r.status_code == 422
-    r = await client.post("/auth/register", json={"email": "x@example.com", "password": "hangout123", "birth_date": ADULT_DOB, "accept_terms": False})
+    r = await client.post(
+        "/auth/register", json={"email": "x@example.com", "password": "hangout123", "birth_date": ADULT_DOB, "accept_terms": False}
+    )
     assert r.status_code == 422
     future = (date.today() + timedelta(days=3)).isoformat()
-    r = await client.post("/auth/register", json={"email": "x@example.com", "password": "hangout123", "birth_date": future, "accept_terms": True})
+    r = await client.post(
+        "/auth/register", json={"email": "x@example.com", "password": "hangout123", "birth_date": future, "accept_terms": True}
+    )
     assert r.status_code == 422
 
 
 async def test_duplicate_email(client):
     await register(client, email="dup@example.com")
-    r = await client.post("/auth/register", json={"email": "DUP@example.com", "password": "hangout123", "birth_date": ADULT_DOB, "accept_terms": True})
+    r = await client.post(
+        "/auth/register", json={"email": "DUP@example.com", "password": "hangout123", "birth_date": ADULT_DOB, "accept_terms": True}
+    )
     assert r.status_code == 409
 
 

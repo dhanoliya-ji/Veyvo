@@ -79,7 +79,7 @@ async def websocket_endpoint(ws: WebSocket):
             if user.profile is None or user.profile.onboarded_at is None:
                 raise ValueError("onboarding required")
             user_id = user.id
-    except (AppError, ValueError, asyncio.TimeoutError, json.JSONDecodeError, WebSocketDisconnect):
+    except (TimeoutError, AppError, ValueError, json.JSONDecodeError, WebSocketDisconnect):
         try:
             await ws.close(code=4401)
         except Exception:
@@ -100,7 +100,7 @@ async def websocket_endpoint(ws: WebSocket):
                 await conn.send({"type": "error", "code": "bad_message"})
                 continue
             await _handle(conn, msg)
-    except (WebSocketDisconnect, asyncio.TimeoutError):
+    except (TimeoutError, WebSocketDisconnect):
         pass
     except Exception:
         logger.exception("ws_error")
@@ -162,7 +162,9 @@ async def _handle(conn: Connection, msg: dict) -> None:
                     stroke = msg.get("stroke")
                     if not _valid_stroke(stroke):
                         raise AppError("Invalid stroke", code="bad_stroke")
-                    await publish(f"game:{session_id}", "game.stroke", {"session_id": str(session_id), "stroke": stroke}, exclude_user=user.id)
+                    await publish(
+                        f"game:{session_id}", "game.stroke", {"session_id": str(session_id), "stroke": stroke}, exclude_user=user.id
+                    )
                 else:
                     await publish(f"game:{session_id}", "game.clear", {"session_id": str(session_id)}, exclude_user=user.id)
             else:

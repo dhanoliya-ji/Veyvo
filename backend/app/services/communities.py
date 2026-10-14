@@ -11,7 +11,12 @@ from app.models import Community, CommunityMember, CommunityPost, Interest, Room
 from app.schemas.social import CommunityIn, CommunityMemberOut, CommunityOut, CommunityPostOut
 from app.services.users import blocked_ids, summaries
 
-DEFAULT_RULES = ["Be kind and respectful.", "Stay on topic.", "No spam or self-promotion.", "Report anything that breaks the Community Guidelines."]
+DEFAULT_RULES = [
+    "Be kind and respectful.",
+    "Stay on topic.",
+    "No spam or self-promotion.",
+    "Report anything that breaks the Community Guidelines.",
+]
 
 
 def _slugify(name: str) -> str:
@@ -33,7 +38,9 @@ async def get_community(db: AsyncSession, community_id: uuid.UUID) -> Community:
 async def community_out(db: AsyncSession, community: Community, user: User) -> CommunityOut:
     member = await _membership(db, community.id, user.id)
     count = await db.scalar(
-        select(func.count()).select_from(CommunityMember).where(CommunityMember.community_id == community.id, CommunityMember.status == "active")
+        select(func.count())
+        .select_from(CommunityMember)
+        .where(CommunityMember.community_id == community.id, CommunityMember.status == "active")
     )
     live = await db.scalar(select(func.count()).select_from(Room).where(Room.community_id == community.id, Room.status == "live"))
     if member is None or member.status == "banned":
@@ -43,14 +50,26 @@ async def community_out(db: AsyncSession, community: Community, user: User) -> C
     else:
         membership = member.role
     return CommunityOut(
-        id=community.id, slug=community.slug, name=community.name, description=community.description,
-        interest_id=community.interest_id, visibility=community.visibility, rules=community.rules or [],
-        member_count=count or 0, membership=membership, live_rooms=live or 0, created_at=community.created_at,
+        id=community.id,
+        slug=community.slug,
+        name=community.name,
+        description=community.description,
+        interest_id=community.interest_id,
+        visibility=community.visibility,
+        rules=community.rules or [],
+        member_count=count or 0,
+        membership=membership,
+        live_rooms=live or 0,
+        created_at=community.created_at,
     )
 
 
-async def list_communities(db: AsyncSession, user: User, *, mine: bool = False, interest_id: int | None = None, q: str | None = None, limit: int = 30) -> list[CommunityOut]:
-    my_ids = select(CommunityMember.community_id).where(CommunityMember.user_id == user.id, CommunityMember.status.in_(["active", "pending"]))
+async def list_communities(
+    db: AsyncSession, user: User, *, mine: bool = False, interest_id: int | None = None, q: str | None = None, limit: int = 30
+) -> list[CommunityOut]:
+    my_ids = select(CommunityMember.community_id).where(
+        CommunityMember.user_id == user.id, CommunityMember.status.in_(["active", "pending"])
+    )
     banned = select(CommunityMember.community_id).where(CommunityMember.user_id == user.id, CommunityMember.status == "banned")
     stmt = select(Community).where(Community.status == "active", Community.id.not_in(banned))
     if mine:
@@ -79,7 +98,12 @@ async def recommended(db: AsyncSession, user: User, limit: int = 8) -> list[Comm
     rows = await db.scalars(
         select(Community)
         .outerjoin(members, members.c.community_id == Community.id)
-        .where(Community.status == "active", Community.visibility == "public", Community.interest_id.in_(my_interests), Community.id.not_in(my_ids))
+        .where(
+            Community.status == "active",
+            Community.visibility == "public",
+            Community.interest_id.in_(my_interests),
+            Community.id.not_in(my_ids),
+        )
         .order_by(func.coalesce(members.c.n, 0).desc())
         .limit(limit)
     )
@@ -90,8 +114,13 @@ async def create(db: AsyncSession, user: User, data: CommunityIn) -> Community:
     if data.interest_id is not None and await db.get(Interest, data.interest_id) is None:
         raise AppError("Unknown topic.", code="invalid_interest", status_code=422)
     community = Community(
-        slug=_slugify(data.name), name=data.name, description=data.description, interest_id=data.interest_id,
-        visibility=data.visibility, owner_id=user.id, rules=[r for r in data.rules if r] or DEFAULT_RULES,
+        slug=_slugify(data.name),
+        name=data.name,
+        description=data.description,
+        interest_id=data.interest_id,
+        visibility=data.visibility,
+        owner_id=user.id,
+        rules=[r for r in data.rules if r] or DEFAULT_RULES,
     )
     db.add(community)
     await db.flush()
@@ -144,7 +173,11 @@ async def members(db: AsyncSession, user: User, community: Community, status: st
     await _require_view(db, community, user)
     if status != "active":
         await _require_staff(db, community, user)
-    rows = list(await db.scalars(select(CommunityMember).where(CommunityMember.community_id == community.id, CommunityMember.status == status).limit(200)))
+    rows = list(
+        await db.scalars(
+            select(CommunityMember).where(CommunityMember.community_id == community.id, CommunityMember.status == status).limit(200)
+        )
+    )
     blocked = await blocked_ids(db, user.id)
     people = await summaries(db, [m.user_id for m in rows])
     return [CommunityMemberOut(**people[m.user_id].model_dump(), role=m.role, status=m.status) for m in rows if m.user_id not in blocked]
@@ -179,13 +212,18 @@ async def posts(db: AsyncSession, user: User, community: Community, limit: int =
     blocked = await blocked_ids(db, user.id)
     rows = list(
         await db.scalars(
-            select(CommunityPost).where(CommunityPost.community_id == community.id, CommunityPost.removed_at.is_(None))
-            .order_by(CommunityPost.created_at.desc()).limit(limit)
+            select(CommunityPost)
+            .where(CommunityPost.community_id == community.id, CommunityPost.removed_at.is_(None))
+            .order_by(CommunityPost.created_at.desc())
+            .limit(limit)
         )
     )
     rows = [r for r in rows if r.author_id not in blocked]
     people = await summaries(db, {r.author_id for r in rows})
-    return [CommunityPostOut(id=r.id, community_id=r.community_id, author=people[r.author_id], content=r.content, created_at=r.created_at) for r in rows]
+    return [
+        CommunityPostOut(id=r.id, community_id=r.community_id, author=people[r.author_id], content=r.content, created_at=r.created_at)
+        for r in rows
+    ]
 
 
 async def create_post(db: AsyncSession, user: User, community: Community, content: str) -> CommunityPostOut:

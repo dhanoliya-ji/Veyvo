@@ -2,10 +2,10 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, MetaData, event
-from sqlalchemy.pool import NullPool
-from sqlalchemy.types import TypeDecorator
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.pool import NullPool
+from sqlalchemy.types import TypeDecorator
 
 from app.core.config import get_settings
 

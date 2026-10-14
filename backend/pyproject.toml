@@ -11,4 +11,5 @@ extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC"]
-ignore = ["B008", "E501", "UP017"]
+# B904: user-facing AppErrors are deliberately raised without chaining internal DB errors.
+ignore = ["B008", "E501", "UP017", "B904", "ASYNC109"]

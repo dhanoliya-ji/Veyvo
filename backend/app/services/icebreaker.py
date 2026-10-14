@@ -74,7 +74,9 @@ async def join_queue(db: AsyncSession, user: User, interest_id: int | None) -> d
     if existing:
         return {"status": "matched", "session": await session_view(db, user, existing)}
     if interest_id is not None:
-        owns = await db.scalar(select(UserInterest.interest_id).where(UserInterest.user_id == user.id, UserInterest.interest_id == interest_id))
+        owns = await db.scalar(
+            select(UserInterest.interest_id).where(UserInterest.user_id == user.id, UserInterest.interest_id == interest_id)
+        )
         if not owns:
             raise AppError("Pick one of your interests.", code="invalid_interest", status_code=422)
 
@@ -100,8 +102,13 @@ async def join_queue(db: AsyncSession, user: User, interest_id: int | None) -> d
     partner_id = uuid.UUID(partner)
     await store.delete(_user_key(partner_id))
     session = IcebreakerSession(
-        user_a_id=user.id, user_b_id=partner_id, interest_id=interest_id,
-        questions=random.sample(ICEBREAKERS, k=3), answers={}, decisions={}, expires_at=utcnow() + SESSION_TTL,
+        user_a_id=user.id,
+        user_b_id=partner_id,
+        interest_id=interest_id,
+        questions=random.sample(ICEBREAKERS, k=3),
+        answers={},
+        decisions={},
+        expires_at=utcnow() + SESSION_TTL,
     )
     db.add(session)
     await db.commit()
@@ -160,7 +167,16 @@ async def decide(db: AsyncSession, user: User, session_id: uuid.UUID, decision: 
             low, high = ordered_pair(user.id, other_id)
             if not await are_friends(db, low, high):
                 db.add(Friendship(user_low_id=low, user_high_id=high, points=5))
-                db.add(FriendRequest(sender_id=session.user_a_id, recipient_id=session.user_b_id, pair_key=pair_key(low, high), status="accepted", source="icebreaker", responded_at=utcnow()))
+                db.add(
+                    FriendRequest(
+                        sender_id=session.user_a_id,
+                        recipient_id=session.user_b_id,
+                        pair_key=pair_key(low, high),
+                        status="accepted",
+                        source="icebreaker",
+                        responded_at=utcnow(),
+                    )
+                )
                 for uid in (user.id, other_id):
                     await rewards.track(db, uid, "friend_made")
             for uid, actor in ((user.id, other_id), (other_id, user.id)):

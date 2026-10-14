@@ -44,7 +44,9 @@ async def get_or_create_conversation(db: AsyncSession, user: User, other_id: uui
     except IntegrityError:
         await db.rollback()
         return await db.scalar(select(Conversation).where(Conversation.pair_key == key))
-    db.add_all([ConversationMember(conversation_id=conv.id, user_id=user.id), ConversationMember(conversation_id=conv.id, user_id=other_id)])
+    db.add_all(
+        [ConversationMember(conversation_id=conv.id, user_id=user.id), ConversationMember(conversation_id=conv.id, user_id=other_id)]
+    )
     await db.commit()
     return conv
 
@@ -86,7 +88,11 @@ async def conversation_view(db: AsyncSession, user: User, conv: Conversation, on
         last_q = last_q.where(Message.created_at > visible_after)
     last = await db.scalar(last_q.order_by(Message.created_at.desc()).limit(1))
 
-    unread_q = select(func.count()).select_from(Message).where(Message.conversation_id == conv.id, Message.sender_id != user.id, Message.deleted_at.is_(None))
+    unread_q = (
+        select(func.count())
+        .select_from(Message)
+        .where(Message.conversation_id == conv.id, Message.sender_id != user.id, Message.deleted_at.is_(None))
+    )
     floor = max([d for d in (me.last_read_at, me.cleared_at) if d], default=None)
     if floor:
         unread_q = unread_q.where(Message.created_at > floor)
@@ -132,7 +138,9 @@ async def unread_total(db: AsyncSession, user_id: uuid.UUID) -> int:
     rows = await db.execute(
         select(func.count())
         .select_from(Message)
-        .join(ConversationMember, and_(ConversationMember.conversation_id == Message.conversation_id, ConversationMember.user_id == user_id))
+        .join(
+            ConversationMember, and_(ConversationMember.conversation_id == Message.conversation_id, ConversationMember.user_id == user_id)
+        )
         .where(
             Message.sender_id != user_id,
             Message.deleted_at.is_(None),
@@ -198,8 +206,14 @@ async def send_message(db: AsyncSession, user: User, conversation_id: uuid.UUID,
     await rewards.add_friendship_points(db, user.id, other.id, 1)
     await rewards.touch_streak(db, user.id)
     await notify(
-        db, other.id, "message", actor_id=user.id, entity_type="conversation", entity_id=str(conversation_id),
-        in_app=False, message_preview=content,
+        db,
+        other.id,
+        "message",
+        actor_id=user.id,
+        entity_type="conversation",
+        entity_id=str(conversation_id),
+        in_app=False,
+        message_preview=content,
     )
     await db.commit()
 

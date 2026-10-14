@@ -10,8 +10,24 @@ from app.schemas.common import ApiModel, CleanText, SingleLine, UserSummary
 
 USERNAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9_.]{1,22})[a-z0-9]$")
 RESERVED_USERNAMES = {
-    "admin", "administrator", "veyvo", "support", "help", "moderator", "mod", "official", "staff",
-    "system", "root", "null", "undefined", "security", "safety", "team", "api", "me",
+    "admin",
+    "administrator",
+    "veyvo",
+    "support",
+    "help",
+    "moderator",
+    "mod",
+    "official",
+    "staff",
+    "system",
+    "root",
+    "null",
+    "undefined",
+    "security",
+    "safety",
+    "team",
+    "api",
+    "me",
 }
 
 

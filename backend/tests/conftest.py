@@ -62,7 +62,9 @@ async def register(client: httpx.AsyncClient, email: str | None = None, password
     return data
 
 
-async def make_user(client: httpx.AsyncClient, username: str | None = None, interests: list[int] | None = None, privacy: dict | None = None) -> dict:
+async def make_user(
+    client: httpx.AsyncClient, username: str | None = None, interests: list[int] | None = None, privacy: dict | None = None
+) -> dict:
     """Register, verify email and complete onboarding. Returns auth data plus `id` and `username`."""
     data = await register(client)
     h = data["headers"]
@@ -74,8 +76,16 @@ async def make_user(client: httpx.AsyncClient, username: str | None = None, inte
         "display_name": username.title(),
         "bio": "Here to hang out",
         "avatar": {
-            "skin": "#E0AC69", "hair": "curlyTop", "hairColor": "#1F1A17", "eyes": "round", "brows": "soft",
-            "mouth": "smile", "outfit": "hoodie", "outfitColor": "#9385FF", "accessory": "none", "bg": "#2A2650",
+            "skin": "#E0AC69",
+            "hair": "curlyTop",
+            "hairColor": "#1F1A17",
+            "eyes": "round",
+            "brows": "soft",
+            "mouth": "smile",
+            "outfit": "hoodie",
+            "outfitColor": "#9385FF",
+            "accessory": "none",
+            "bg": "#2A2650",
         },
         "interest_ids": interests or await interest_ids(client),
     }

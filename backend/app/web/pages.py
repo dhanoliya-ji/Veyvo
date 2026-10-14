@@ -48,12 +48,16 @@ def _page(title: str, body: str) -> HTMLResponse:
     doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)} · Veyvo</title><meta name="robots" content="index,follow"><style>{_STYLE}</style></head>
 <body><main><a class="brand" href="/legal/privacy">Veyvo</a>{nav}{body}</main></body></html>"""
-    return HTMLResponse(doc, headers={"Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY"})
+    return HTMLResponse(
+        doc, headers={"Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY"}
+    )
 
 
 @router.get("/legal/privacy", response_class=HTMLResponse)
 async def privacy():
-    return _page("Privacy Policy", f"""
+    return _page(
+        "Privacy Policy",
+        f"""
 <h1>Privacy Policy</h1><p class="muted">Last updated {UPDATED}</p>
 <p>Veyvo is built to collect as little about you as possible. This policy explains exactly what we store, why, and how to control it.</p>
 <h2>What we collect</h2>
@@ -90,12 +94,15 @@ async def privacy():
 <h2>Service providers</h2><p>We use infrastructure providers to host the service, send email codes and deliver push notifications, and a real-time media provider to relay live voice. They process data only on our instructions.</p>
 <h2>Adults only</h2><p>Veyvo is for people aged 18 and over. If we learn an account belongs to someone younger, we delete it.</p>
 <h2>Changes</h2><p>We'll notify you in the app before material changes take effect.</p>
-<p class="muted">Contact: <a href="mailto:{CONTACT}">{CONTACT}</a></p>""")
+<p class="muted">Contact: <a href="mailto:{CONTACT}">{CONTACT}</a></p>""",
+    )
 
 
 @router.get("/legal/terms", response_class=HTMLResponse)
 async def terms():
-    return _page("Terms of Service", f"""
+    return _page(
+        "Terms of Service",
+        f"""
 <h1>Terms of Service</h1><p class="muted">Last updated {UPDATED}</p>
 <h2>1. Who can use Veyvo</h2><p>You must be at least 18 years old. You may hold one account, and the information you give us must be accurate.</p>
 <h2>2. Your content</h2><p>You own what you post. You give Veyvo a limited licence to store and display it to the people you share it with, only to operate the service. Don't post anything you don't have the right to share.</p>
@@ -105,12 +112,15 @@ async def terms():
 <h2>6. Ending your account</h2><p>You can delete your account at any time. We may suspend or end accounts that violate these terms or put others at risk.</p>
 <h2>7. Disclaimers</h2><p>Veyvo is provided "as is". We work hard to keep it safe but can't guarantee other users' behaviour. Use your judgement and report anything that feels wrong.</p>
 <h2>8. Changes</h2><p>We'll give notice in the app before material changes take effect.</p>
-<p class="muted">Contact: <a href="mailto:{CONTACT}">{CONTACT}</a></p>""")
+<p class="muted">Contact: <a href="mailto:{CONTACT}">{CONTACT}</a></p>""",
+    )
 
 
 @router.get("/legal/guidelines", response_class=HTMLResponse)
 async def guidelines():
-    return _page("Community Guidelines", f"""
+    return _page(
+        "Community Guidelines",
+        f"""
 <h1>Community Guidelines</h1><p class="muted">Last updated {UPDATED}</p>
 <p>Veyvo is a place to hang out, play and make friends. These rules keep it that way.</p>
 <h2>Be kind</h2><p>No harassment, bullying, hate speech, threats or encouraging self-harm.</p>
@@ -121,12 +131,15 @@ async def guidelines():
 <h2>Play fair</h2><p>No cheating, exploiting bugs or manipulating games and rewards.</p>
 <h2>If something goes wrong</h2><p>Leave any room instantly, block anyone, and use Report from a profile, message, room or community. Reports are confidential: the person is not told who reported them.</p>
 <h2>Enforcement</h2><p>Depending on severity: content removal, warnings, temporary suspension or permanent ban. Severe harm, including any child exploitation, results in an immediate ban and reporting to authorities.</p>
-<p class="muted">Safety contact: <a href="mailto:{SAFETY_CONTACT}">{SAFETY_CONTACT}</a></p>""")
+<p class="muted">Safety contact: <a href="mailto:{SAFETY_CONTACT}">{SAFETY_CONTACT}</a></p>""",
+    )
 
 
 @router.get("/legal/child-safety", response_class=HTMLResponse)
 async def child_safety():
-    return _page("Child Safety Standards", f"""
+    return _page(
+        "Child Safety Standards",
+        f"""
 <h1>Child Safety Standards</h1><p class="muted">Last updated {UPDATED}</p>
 <p>Veyvo has zero tolerance for child sexual abuse and exploitation (CSAE), including child sexual abuse material (CSAM), grooming, and any sexualisation of minors.</p>
 <h2>Our standards</h2>
@@ -136,14 +149,17 @@ async def child_safety():
 <li><strong>In-app reporting:</strong> every profile, message, room and community has a Report option, including a dedicated "User may be under 18" reason.</li>
 <li><strong>Moderation:</strong> reports are reviewed by trained moderators. Violations lead to immediate permanent bans.</li>
 <li><strong>Legal compliance:</strong> we comply with applicable child safety laws and report apparent CSAM to the relevant authorities, such as NCMEC or regional equivalents.</li></ul>
-<h2>Contact</h2><p>Our designated child safety point of contact can be reached at <a href="mailto:{SAFETY_CONTACT}">{SAFETY_CONTACT}</a>.</p>""")
+<h2>Contact</h2><p>Our designated child safety point of contact can be reached at <a href="mailto:{SAFETY_CONTACT}">{SAFETY_CONTACT}</a>.</p>""",
+    )
 
 
 def _delete_form(message: str = "", ok: bool = False) -> HTMLResponse:
     note = f'<div class="card {"ok" if ok else "err"}">{html.escape(message)}</div>' if message else ""
     if ok:
         return _page("Account deleted", f"<h1>Account deleted</h1>{note}")
-    return _page("Delete your account", f"""
+    return _page(
+        "Delete your account",
+        f"""
 <h1>Delete your Veyvo account</h1>
 <p>You can also do this in the app: <strong>Profile → Settings → Account → Delete account</strong>.</p>
 <p class="muted">Deleting is permanent and happens immediately. Your profile, avatar, messages you sent, hangout chat, posts, friendships, gems and items are erased. Reports you filed are kept without your identity so open safety reviews can finish.</p>
@@ -154,7 +170,8 @@ def _delete_form(message: str = "", ok: bool = False) -> HTMLResponse:
 <label for="confirm">Type DELETE to confirm</label><input id="confirm" name="confirm" required maxlength="10">
 <button type="submit">Permanently delete my account</button>
 </form>
-<p class="muted">Forgot your password? Reset it in the app first, or email <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>""")
+<p class="muted">Forgot your password? Reset it in the app first, or email <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>""",
+    )
 
 
 @router.get("/account/delete", response_class=HTMLResponse)
@@ -163,7 +180,9 @@ async def delete_page():
 
 
 @router.post("/account/delete", response_class=HTMLResponse)
-async def delete_submit(request: Request, email: str = Form(max_length=320), password: str = Form(max_length=128), confirm: str = Form(max_length=10)):
+async def delete_submit(
+    request: Request, email: str = Form(max_length=320), password: str = Form(max_length=128), confirm: str = Form(max_length=10)
+):
     try:
         await hit("login", client_ip(request))
     except AppError as exc:
@@ -184,5 +203,8 @@ async def delete_submit(request: Request, email: str = Form(max_length=320), pas
 @router.get("/", response_class=HTMLResponse)
 async def index():
     settings = get_settings()
-    return _page("Veyvo", f"""<h1>Meet your people. Find your vibe. Hang out together.</h1>
-<p class="muted">This is the {html.escape(settings.app_name)} API server. Get the app on Google Play.</p>""")
+    return _page(
+        "Veyvo",
+        f"""<h1>Meet your people. Find your vibe. Hang out together.</h1>
+<p class="muted">This is the {html.escape(settings.app_name)} API server. Get the app on Google Play.</p>""",
+    )

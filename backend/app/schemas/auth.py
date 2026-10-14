@@ -5,8 +5,20 @@ from pydantic import EmailStr, Field, field_validator
 from app.schemas.common import ApiModel
 
 _COMMON_PASSWORDS = {
-    "password", "password1", "password123", "12345678", "123456789", "1234567890", "qwerty123",
-    "qwertyuiop", "iloveyou", "11111111", "abc12345", "letmein1", "welcome1", "admin123",
+    "password",
+    "password1",
+    "password123",
+    "12345678",
+    "123456789",
+    "1234567890",
+    "qwerty123",
+    "qwertyuiop",
+    "iloveyou",
+    "11111111",
+    "abc12345",
+    "letmein1",
+    "welcome1",
+    "admin123",
 }
 
 

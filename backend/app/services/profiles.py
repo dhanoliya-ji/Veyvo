@@ -35,7 +35,10 @@ from app.services.users import (
 
 async def user_interests(db: AsyncSession, user_id: uuid.UUID) -> list[Interest]:
     rows = await db.scalars(
-        select(Interest).join(UserInterest, UserInterest.interest_id == Interest.id).where(UserInterest.user_id == user_id).order_by(Interest.name)
+        select(Interest)
+        .join(UserInterest, UserInterest.interest_id == Interest.id)
+        .where(UserInterest.user_id == user_id)
+        .order_by(Interest.name)
     )
     return list(rows)
 
@@ -144,8 +147,17 @@ async def public_profile(db: AsyncSession, viewer: User, target_id: uuid.UUID) -
                 raise AppError("This person isn't available.", code="user_unavailable", status_code=404)
             base = summary(target.profile)
             return PublicProfile(
-                **base.model_dump(), bio="", interests=[], shared_interest_ids=[], relationship="blocked",
-                mutual_friends=0, kudos={}, can_message=False, can_friend_request=False, can_invite=False, limited=True,
+                **base.model_dump(),
+                bio="",
+                interests=[],
+                shared_interest_ids=[],
+                relationship="blocked",
+                mutual_friends=0,
+                kudos={},
+                can_message=False,
+                can_friend_request=False,
+                can_invite=False,
+                limited=True,
             )
         target = await get_active_user(db, target_id)
 
@@ -239,9 +251,10 @@ async def have_hung_out(db: AsyncSession, a: uuid.UUID, b: uuid.UUID) -> bool:
         return True
     r1, r2 = aliased(RoomMember), aliased(RoomMember)
     shared_room = await db.scalar(
-        select(r1.room_id).join(r2, r1.room_id == r2.room_id).where(
-            r1.user_id == a, r2.user_id == b, r1.first_joined_at.is_not(None), r2.first_joined_at.is_not(None)
-        ).limit(1)
+        select(r1.room_id)
+        .join(r2, r1.room_id == r2.room_id)
+        .where(r1.user_id == a, r2.user_id == b, r1.first_joined_at.is_not(None), r2.first_joined_at.is_not(None))
+        .limit(1)
     )
     if shared_room:
         return True

@@ -83,18 +83,14 @@ async def get_active_user(db: AsyncSession, user_id: uuid.UUID) -> User:
 # ----- Blocks -----
 async def is_blocked_either(db: AsyncSession, a: uuid.UUID, b: uuid.UUID) -> bool:
     row = await db.scalar(
-        select(Block.id).where(
-            or_(and_(Block.blocker_id == a, Block.blocked_id == b), and_(Block.blocker_id == b, Block.blocked_id == a))
-        )
+        select(Block.id).where(or_(and_(Block.blocker_id == a, Block.blocked_id == b), and_(Block.blocker_id == b, Block.blocked_id == a)))
     )
     return row is not None
 
 
 async def blocked_ids(db: AsyncSession, user_id: uuid.UUID) -> set[uuid.UUID]:
     """Everyone this user blocked or was blocked by. They are hidden from each other everywhere."""
-    rows = await db.execute(
-        select(Block.blocker_id, Block.blocked_id).where(or_(Block.blocker_id == user_id, Block.blocked_id == user_id))
-    )
+    rows = await db.execute(select(Block.blocker_id, Block.blocked_id).where(or_(Block.blocker_id == user_id, Block.blocked_id == user_id)))
     out: set[uuid.UUID] = set()
     for blocker, blocked in rows:
         out.add(blocked if blocker == user_id else blocker)
@@ -121,17 +117,16 @@ async def friend_ids(db: AsyncSession, user_id: uuid.UUID) -> set[uuid.UUID]:
 
 
 async def friend_count(db: AsyncSession, user_id: uuid.UUID) -> int:
-    return await db.scalar(
-        select(func.count()).select_from(Friendship).where(
-            or_(Friendship.user_low_id == user_id, Friendship.user_high_id == user_id)
+    return (
+        await db.scalar(
+            select(func.count()).select_from(Friendship).where(or_(Friendship.user_low_id == user_id, Friendship.user_high_id == user_id))
         )
-    ) or 0
+        or 0
+    )
 
 
 async def pending_request_between(db: AsyncSession, a: uuid.UUID, b: uuid.UUID) -> FriendRequest | None:
-    return await db.scalar(
-        select(FriendRequest).where(FriendRequest.pair_key == pair_key(a, b), FriendRequest.status == "pending")
-    )
+    return await db.scalar(select(FriendRequest).where(FriendRequest.pair_key == pair_key(a, b), FriendRequest.status == "pending"))
 
 
 # ----- Presence -----
@@ -147,7 +142,9 @@ async def online_set() -> set[str]:
     return set(await get_store().zmembers(ONLINE_KEY))
 
 
-async def visible_online(db: AsyncSession, viewer_id: uuid.UUID, target: User, *, is_friend: bool | None = None, online: set[str] | None = None) -> bool | None:
+async def visible_online(
+    db: AsyncSession, viewer_id: uuid.UUID, target: User, *, is_friend: bool | None = None, online: set[str] | None = None
+) -> bool | None:
     """Online status is only shown to friends, and only if the person allows it. None = hidden."""
     if target.privacy is None or target.privacy.show_online_status == "nobody":
         return None

@@ -34,15 +34,22 @@ async def create_report(db: AsyncSession, reporter: User, target_type: str, targ
 
     duplicate = await db.scalar(
         select(Report).where(
-            Report.reporter_id == reporter.id, Report.target_type == target_type, Report.target_id == target_id,
+            Report.reporter_id == reporter.id,
+            Report.target_type == target_type,
+            Report.target_id == target_id,
             Report.status.in_(["open", "reviewing"]),
         )
     )
     if duplicate:
         return duplicate
     report = Report(
-        reporter_id=reporter.id, target_type=target_type, target_id=target_id, target_user_id=target_user_id,
-        reason=reason, description=description, evidence=evidence,
+        reporter_id=reporter.id,
+        target_type=target_type,
+        target_id=target_id,
+        target_user_id=target_user_id,
+        reason=reason,
+        description=description,
+        evidence=evidence,
     )
     db.add(report)
     await db.commit()
@@ -96,11 +103,38 @@ async def _resolve_target(db: AsyncSession, reporter: User, target_type: str, ta
 
 # ----- Moderator tools -----
 def _audit_out(a: ModerationAction, people: dict) -> AuditOut:
-    return AuditOut(id=a.id, actor=people.get(a.actor_id), action=a.action, target_type=a.target_type, target_id=a.target_id, reason=a.reason, created_at=a.created_at)
+    return AuditOut(
+        id=a.id,
+        actor=people.get(a.actor_id),
+        action=a.action,
+        target_type=a.target_type,
+        target_id=a.target_id,
+        reason=a.reason,
+        created_at=a.created_at,
+    )
 
 
-async def record(db: AsyncSession, actor: User, action: str, target_type: str, target_id: str, reason: str = "", report_id: uuid.UUID | None = None, meta: dict | None = None) -> None:
-    db.add(ModerationAction(actor_id=actor.id, action=action, target_type=target_type, target_id=target_id, reason=reason, report_id=report_id, meta=meta or {}))
+async def record(
+    db: AsyncSession,
+    actor: User,
+    action: str,
+    target_type: str,
+    target_id: str,
+    reason: str = "",
+    report_id: uuid.UUID | None = None,
+    meta: dict | None = None,
+) -> None:
+    db.add(
+        ModerationAction(
+            actor_id=actor.id,
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            reason=reason,
+            report_id=report_id,
+            meta=meta or {},
+        )
+    )
 
 
 async def list_reports(db: AsyncSession, status: str | None, before: str | None, limit: int) -> Page[ReportOut]:
@@ -115,7 +149,9 @@ async def list_reports(db: AsyncSession, status: str | None, before: str | None,
     rows = list(await db.scalars(stmt.order_by(Report.created_at.desc()).limit(limit + 1)))
     more = len(rows) > limit
     rows = rows[:limit]
-    return Page[ReportOut](items=[ReportOut.model_validate(r) for r in rows], next_cursor=rows[-1].created_at.isoformat() if more and rows else None)
+    return Page[ReportOut](
+        items=[ReportOut.model_validate(r) for r in rows], next_cursor=rows[-1].created_at.isoformat() if more and rows else None
+    )
 
 
 async def report_detail(db: AsyncSession, report_id: uuid.UUID) -> ReportDetail:
@@ -125,23 +161,39 @@ async def report_detail(db: AsyncSession, report_id: uuid.UUID) -> ReportDetail:
     history = list(
         await db.scalars(
             select(ModerationAction)
-            .where(or_(ModerationAction.report_id == report.id, and_(ModerationAction.target_id == str(report.target_user_id), ModerationAction.target_type == "user")))
-            .order_by(ModerationAction.created_at.desc()).limit(50)
+            .where(
+                or_(
+                    ModerationAction.report_id == report.id,
+                    and_(ModerationAction.target_id == str(report.target_user_id), ModerationAction.target_type == "user"),
+                )
+            )
+            .order_by(ModerationAction.created_at.desc())
+            .limit(50)
         )
     )
     people = await summaries(db, [i for i in [report.reporter_id, report.target_user_id] + [a.actor_id for a in history] if i])
     prior = 0
     target_status = None
     if report.target_user_id:
-        prior = await db.scalar(select(func.count()).select_from(Report).where(Report.target_user_id == report.target_user_id, Report.id != report.id)) or 0
+        prior = (
+            await db.scalar(
+                select(func.count()).select_from(Report).where(Report.target_user_id == report.target_user_id, Report.id != report.id)
+            )
+            or 0
+        )
         target = await db.get(User, report.target_user_id)
         target_status = target.status if target else None
     return ReportDetail(
         **ReportOut.model_validate(report).model_dump(),
-        description=report.description, evidence=report.evidence,
-        reporter=people.get(report.reporter_id), target_user=people.get(report.target_user_id),
-        target_user_status=target_status, reviewer_note=report.reviewer_note, resolution=report.resolution,
-        resolved_at=report.resolved_at, prior_reports_against_target=prior,
+        description=report.description,
+        evidence=report.evidence,
+        reporter=people.get(report.reporter_id),
+        target_user=people.get(report.target_user_id),
+        target_user_status=target_status,
+        reviewer_note=report.reviewer_note,
+        resolution=report.resolution,
+        resolved_at=report.resolved_at,
+        prior_reports_against_target=prior,
         history=[_audit_out(a, people) for a in history],
     )
 
@@ -153,7 +205,16 @@ def _guard_target(actor: User, target: User) -> None:
         raise Forbidden("Only admins can moderate staff accounts.", code="cannot_moderate_staff")
 
 
-async def apply_user_action(db: AsyncSession, actor: User, target: User, action: str, reason: str, days: int | None = None, report_id: uuid.UUID | None = None, role: str | None = None) -> None:
+async def apply_user_action(
+    db: AsyncSession,
+    actor: User,
+    target: User,
+    action: str,
+    reason: str,
+    days: int | None = None,
+    report_id: uuid.UUID | None = None,
+    role: str | None = None,
+) -> None:
     _guard_target(actor, target)
     if action == "warn":
         await notify(db, target.id, "moderation_warning", entity_type="account", data={"reason": reason[:300]})
@@ -177,7 +238,16 @@ async def apply_user_action(db: AsyncSession, actor: User, target: User, action:
         target.role = role
     else:
         raise AppError("Unknown action.", code="invalid_action", status_code=422)
-    await record(db, actor, action if action != "set_role" else f"set_role:{role}", "user", str(target.id), reason, report_id, {"days": days} if days else None)
+    await record(
+        db,
+        actor,
+        action if action != "set_role" else f"set_role:{role}",
+        "user",
+        str(target.id),
+        reason,
+        report_id,
+        {"days": days} if days else None,
+    )
 
 
 async def decide(db: AsyncSession, actor: User, report_id: uuid.UUID, action: str, note: str, days: int | None) -> ReportDetail:
@@ -250,7 +320,16 @@ async def search_users(db: AsyncSession, actor: User, q: str, limit: int = 25) -
     out = []
     for u in users:
         count = await db.scalar(select(func.count()).select_from(Report).where(Report.target_user_id == u.id)) or 0
-        out.append(AdminUserOut(**summary(u.profile).model_dump(), role=u.role, status=u.status, suspended_until=u.suspended_until, created_at=u.created_at, reports_against=count))
+        out.append(
+            AdminUserOut(
+                **summary(u.profile).model_dump(),
+                role=u.role,
+                status=u.status,
+                suspended_until=u.suspended_until,
+                created_at=u.created_at,
+                reports_against=count,
+            )
+        )
     return out
 
 

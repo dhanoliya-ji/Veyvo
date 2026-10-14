@@ -73,9 +73,7 @@ async def track(db: AsyncSession, user_id: uuid.UUID, event: str, amount: int = 
     keys = [q["key"] for q in QUESTS if q["event"] == event]
     if not keys:
         return
-    rows = await db.scalars(
-        select(QuestProgress).where(QuestProgress.user_id == user_id, QuestProgress.quest_key.in_(keys))
-    )
+    rows = await db.scalars(select(QuestProgress).where(QuestProgress.user_id == user_id, QuestProgress.quest_key.in_(keys)))
     for row in rows:
         if row.completed_at:
             continue

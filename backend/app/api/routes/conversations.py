@@ -33,8 +33,11 @@ async def get_conversation(conversation_id: uuid.UUID, user: ActiveUser, db: DB)
 
 @router.get("/{conversation_id}/messages", response_model=Page[MessageOut])
 async def list_messages(
-    conversation_id: uuid.UUID, user: ActiveUser, db: DB,
-    before: str | None = Query(default=None, max_length=100), limit: int = Query(default=30, ge=1, le=100),
+    conversation_id: uuid.UUID,
+    user: ActiveUser,
+    db: DB,
+    before: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=30, ge=1, le=100),
 ):
     return await messaging.list_messages(db, user, conversation_id, before, limit)
 

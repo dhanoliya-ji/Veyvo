@@ -26,12 +26,22 @@ async def daily_view(db: AsyncSession, user: User) -> DailyQuestionOut:
     results = total = None
     if mine:
         rows = await db.execute(
-            select(DailyAnswer.choice, func.count()).where(DailyAnswer.day == day, DailyAnswer.question_key == q["key"]).group_by(DailyAnswer.choice)
+            select(DailyAnswer.choice, func.count())
+            .where(DailyAnswer.day == day, DailyAnswer.question_key == q["key"])
+            .group_by(DailyAnswer.choice)
         )
         counts = dict(rows.all())
         results = [counts.get(i, 0) for i in range(len(q["o"]))]
         total = sum(results)
-    return DailyQuestionOut(day=day.isoformat(), key=q["key"], question=q["q"], options=q["o"], my_choice=mine.choice if mine else None, results=results, total=total)
+    return DailyQuestionOut(
+        day=day.isoformat(),
+        key=q["key"],
+        question=q["q"],
+        options=q["o"],
+        my_choice=mine.choice if mine else None,
+        results=results,
+        total=total,
+    )
 
 
 async def answer_daily(db: AsyncSession, user: User, choice: int) -> tuple[DailyQuestionOut, RewardOut | None]:
@@ -54,7 +64,9 @@ async def answer_daily(db: AsyncSession, user: User, choice: int) -> tuple[Daily
 async def shop(db: AsyncSession, user: User) -> list[ShopItemOut]:
     owned = set(await db.scalars(select(OwnedItem.item_key).where(OwnedItem.user_id == user.id)))
     return [
-        ShopItemOut(key=c["key"], slot=c["slot"], value=c["value"], name=c["name"], price=c["price"], owned=c["price"] == 0 or c["key"] in owned)
+        ShopItemOut(
+            key=c["key"], slot=c["slot"], value=c["value"], name=c["name"], price=c["price"], owned=c["price"] == 0 or c["key"] in owned
+        )
         for c in COSMETICS
     ]
 
@@ -84,4 +96,3 @@ async def claim(db: AsyncSession, user: User, quest_key: str) -> RewardOut:
         raise Conflict("This quest isn't ready to claim.", code="quest_not_claimable")
     await db.commit()
     return reward
-

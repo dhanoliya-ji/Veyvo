@@ -27,7 +27,8 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 @router.get("", response_model=list[RoomOut])
 async def list_rooms(
-    user: ActiveUser, db: DB,
+    user: ActiveUser,
+    db: DB,
     kind: Literal["hangout", "study"] | None = None,
     format: Literal["text", "voice"] | None = None,
     interest_id: int | None = None,
@@ -36,7 +37,9 @@ async def list_rooms(
     q: str | None = Query(default=None, max_length=60),
     limit: int = Query(default=30, ge=1, le=60),
 ):
-    return await rooms.list_rooms(db, user, kind=kind, format_=format, interest_id=interest_id, q=q, status=status, community_id=community_id, limit=limit)
+    return await rooms.list_rooms(
+        db, user, kind=kind, format_=format, interest_id=interest_id, q=q, status=status, community_id=community_id, limit=limit
+    )
 
 
 @router.post("", response_model=RoomDetail, status_code=201)

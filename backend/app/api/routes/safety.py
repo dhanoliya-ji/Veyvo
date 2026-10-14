@@ -39,8 +39,15 @@ async def notifications(user: CurrentUser, db: DB, limit: int = Query(default=50
     people = await summaries(db, {n.actor_id for n in rows if n.actor_id})
     return [
         NotificationOut(
-            id=n.id, type=n.type, actor=people.get(n.actor_id), entity_type=n.entity_type, entity_id=n.entity_id,
-            data=n.data, count=n.count, read_at=n.read_at, created_at=n.created_at,
+            id=n.id,
+            type=n.type,
+            actor=people.get(n.actor_id),
+            entity_type=n.entity_type,
+            entity_id=n.entity_id,
+            data=n.data,
+            count=n.count,
+            read_at=n.read_at,
+            created_at=n.created_at,
         )
         for n in rows
     ]
@@ -48,7 +55,9 @@ async def notifications(user: CurrentUser, db: DB, limit: int = Query(default=50
 
 @router.post("/notifications/read", response_model=Ok)
 async def mark_all_read(user: CurrentUser, db: DB):
-    await db.execute(update(Notification).where(Notification.recipient_id == user.id, Notification.read_at.is_(None)).values(read_at=utcnow()))
+    await db.execute(
+        update(Notification).where(Notification.recipient_id == user.id, Notification.read_at.is_(None)).values(read_at=utcnow())
+    )
     await db.commit()
     return Ok()
 
@@ -79,9 +88,11 @@ async def my_reports(user: ActiveUser, db: DB):
 # ----- Moderation (moderators and admins only; role checked from the database on every request) -----
 @router.get("/moderation/reports", response_model=Page[ReportOut])
 async def queue(
-    mod: Moderator, db: DB,
+    mod: Moderator,
+    db: DB,
     status: Literal["open", "reviewing", "actioned", "dismissed"] | None = "open",
-    before: str | None = Query(default=None, max_length=64), limit: int = Query(default=30, ge=1, le=100),
+    before: str | None = Query(default=None, max_length=64),
+    limit: int = Query(default=30, ge=1, le=100),
 ):
     return await moderation.list_reports(db, status, before, limit)
 

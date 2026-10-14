@@ -63,7 +63,9 @@ async def send_request(db: AsyncSession, sender: User, recipient_id: uuid.UUID, 
 
     await notify(db, recipient_id, "friend_request", actor_id=sender.id, entity_type="friend_request", entity_id=str(request.id))
     await db.commit()
-    await publish_user(recipient_id, "friend_request.created", {"request_id": str(request.id), "from": summary(sender.profile).model_dump(mode="json")})
+    await publish_user(
+        recipient_id, "friend_request.created", {"request_id": str(request.id), "from": summary(sender.profile).model_dump(mode="json")}
+    )
     return {"status": "pending", "request_id": str(request.id)}
 
 
@@ -136,16 +138,12 @@ async def remove_friend(db: AsyncSession, user: User, other_id: uuid.UUID) -> No
 
 
 async def list_friends(db: AsyncSession, user: User, q: str | None = None) -> list[FriendOut]:
-    rows = list(
-        await db.scalars(
-            select(Friendship).where(or_(Friendship.user_low_id == user.id, Friendship.user_high_id == user.id))
-        )
-    )
+    rows = list(await db.scalars(select(Friendship).where(or_(Friendship.user_low_id == user.id, Friendship.user_high_id == user.id))))
     other_ids = [f.user_high_id if f.user_low_id == user.id else f.user_low_id for f in rows]
     users = {u.id: u for u in await db.scalars(select(User).where(User.id.in_(other_ids)))} if other_ids else {}
     online = await online_set()
     out = []
-    for f, oid in zip(rows, other_ids):
+    for f, oid in zip(rows, other_ids, strict=False):
         other = users.get(oid)
         if other is None or other.status == "banned":
             continue
@@ -156,8 +154,11 @@ async def list_friends(db: AsyncSession, user: User, q: str | None = None) -> li
         show = other.privacy.show_online_status != "nobody"
         out.append(
             FriendOut(
-                **s.model_dump(), friendship_level=level, friendship_progress=progress,
-                online=(str(oid) in online) if show else None, since=f.created_at,
+                **s.model_dump(),
+                friendship_level=level,
+                friendship_progress=progress,
+                online=(str(oid) in online) if show else None,
+                since=f.created_at,
             )
         )
     out.sort(key=lambda x: (not bool(x.online), x.display_name.lower()))
@@ -264,4 +265,3 @@ async def list_blocked(db: AsyncSession, user: User) -> list[BlockedOut]:
 
 async def mutual_friend_count(db: AsyncSession, a: uuid.UUID, b: uuid.UUID) -> int:
     return len((await friend_ids(db, a)) & (await friend_ids(db, b)))
-

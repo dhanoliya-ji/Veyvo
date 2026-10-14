@@ -46,7 +46,7 @@ def _edit_distance_le1(a: str, b: str) -> bool:
     if abs(len(a) - len(b)) > 1:
         return False
     if len(a) == len(b):
-        return sum(x != y for x, y in zip(a, b)) <= 1
+        return sum(x != y for x, y in zip(a, b, strict=False)) <= 1
     if len(a) > len(b):
         a, b = b, a
     i = j = diff = 0
@@ -105,7 +105,11 @@ async def create_game(db: AsyncSession, user: User, game_type: str, room_id: uui
     db.add(GamePlayer(session_id=game.id, user_id=user.id))
     await db.commit()
     if room_id:
-        await publish(f"room:{room_id}", "room.game_created", {"room_id": str(room_id), "session_id": str(game.id), "game_type": game_type, "code": game.code})
+        await publish(
+            f"room:{room_id}",
+            "room.game_created",
+            {"room_id": str(room_id), "session_id": str(game.id), "game_type": game_type, "code": game.code},
+        )
     return game
 
 
@@ -132,7 +136,9 @@ async def join_game(db: AsyncSession, user: User, session_id: uuid.UUID) -> Game
         raise AppError("This game has ended.", code="game_over", status_code=410)
     player = await db.get(GamePlayer, (game.id, user.id))
     if player is None:
-        count = await db.scalar(select(func.count()).select_from(GamePlayer).where(GamePlayer.session_id == game.id, GamePlayer.active.is_(True)))
+        count = await db.scalar(
+            select(func.count()).select_from(GamePlayer).where(GamePlayer.session_id == game.id, GamePlayer.active.is_(True))
+        )
         if count >= MAX_PLAYERS:
             raise AppError("This game is full.", code="game_full", status_code=409)
         db.add(GamePlayer(session_id=game.id, user_id=user.id))
@@ -183,7 +189,9 @@ async def start_game(db: AsyncSession, user: User, session_id: uuid.UUID) -> Gam
         game.settings = s
         drawers = [str(players[i % len(players)].user_id) for i in range(rounds)]
         state = {"drawers": drawers, "words": rng.sample(DOODLE_WORDS, k=rounds)}
-    state.update(round=0, phase="countdown", phase_started_at=_iso(now), phase_ends_at=_iso(now + timedelta(seconds=s["countdown_seconds"])))
+    state.update(
+        round=0, phase="countdown", phase_started_at=_iso(now), phase_ends_at=_iso(now + timedelta(seconds=s["countdown_seconds"]))
+    )
     game.state = state
     game.status = "active"
     game.started_at = now
@@ -214,15 +222,28 @@ async def advance(db: AsyncSession, game: GameSession, now: datetime | None = No
         phase = state["phase"]
         if phase == "countdown":
             length = s["question_seconds"] if game.game_type == "trivia" else s["draw_seconds"]
-            state.update(phase="question" if game.game_type == "trivia" else "drawing", phase_started_at=_iso(ends), phase_ends_at=_iso(ends + timedelta(seconds=length)))
+            state.update(
+                phase="question" if game.game_type == "trivia" else "drawing",
+                phase_started_at=_iso(ends),
+                phase_ends_at=_iso(ends + timedelta(seconds=length)),
+            )
         elif phase in ("question", "drawing"):
-            state.update(phase="reveal" if game.game_type == "trivia" else "round_end", phase_started_at=_iso(ends), phase_ends_at=_iso(ends + timedelta(seconds=s["reveal_seconds"])))
+            state.update(
+                phase="reveal" if game.game_type == "trivia" else "round_end",
+                phase_started_at=_iso(ends),
+                phase_ends_at=_iso(ends + timedelta(seconds=s["reveal_seconds"])),
+            )
         else:  # reveal / round_end
             if state["round"] + 1 >= _total_rounds(game):
                 state.update(phase="round_end", phase_ends_at=None)
                 game.status, game.ended_at = "finished", ends
                 break
-            state.update(round=state["round"] + 1, phase="countdown", phase_started_at=_iso(ends), phase_ends_at=_iso(ends + timedelta(seconds=s["countdown_seconds"])))
+            state.update(
+                round=state["round"] + 1,
+                phase="countdown",
+                phase_started_at=_iso(ends),
+                phase_ends_at=_iso(ends + timedelta(seconds=s["countdown_seconds"])),
+            )
     if changed:
         game.state = state
         game.version += 1
@@ -245,13 +266,15 @@ async def _award_finish(db: AsyncSession, game: GameSession) -> None:
     top = max(p.score for p in players)
     for p in players:
         win = p.score == top and top > 0 and len(players) > 1
-        await rewards.grant(db, p.user_id, gems=10 + (15 if win else 0), xp=20 + (20 if win else 0), reason="game", key=f"game:{game.id}:{p.user_id}")
+        await rewards.grant(
+            db, p.user_id, gems=10 + (15 if win else 0), xp=20 + (20 if win else 0), reason="game", key=f"game:{game.id}:{p.user_id}"
+        )
         await rewards.track(db, p.user_id, "game_finished")
         await rewards.touch_streak(db, p.user_id)
     ids = [p.user_id for p in players]
     for i, a in enumerate(ids):
         friends = await friend_ids(db, a)
-        for b in ids[i + 1:]:
+        for b in ids[i + 1 :]:
             if b in friends:
                 await rewards.add_friendship_points(db, a, b, 3)
 
@@ -287,13 +310,21 @@ async def submit_trivia(db: AsyncSession, user: User, game_id: uuid.UUID, round_
     points = int(500 + 500 * remaining) if correct else 0
     try:
         async with db.begin_nested():
-            db.add(GameSubmission(session_id=game.id, user_id=user.id, round_index=round_index, answer=str(choice), is_correct=correct, points=points))
+            db.add(
+                GameSubmission(
+                    session_id=game.id, user_id=user.id, round_index=round_index, answer=str(choice), is_correct=correct, points=points
+                )
+            )
     except IntegrityError:
         raise Conflict("You already answered this question.", code="already_answered")
     player.score += points
 
     active = [p for p in await _players(db, game.id) if p.active]
-    answered = await db.scalar(select(func.count()).select_from(GameSubmission).where(GameSubmission.session_id == game.id, GameSubmission.round_index == round_index))
+    answered = await db.scalar(
+        select(func.count())
+        .select_from(GameSubmission)
+        .where(GameSubmission.session_id == game.id, GameSubmission.round_index == round_index)
+    )
     if answered >= len(active):
         await _close_phase_early(db, game)
     else:
@@ -320,7 +351,11 @@ async def submit_guess(db: AsyncSession, user: User, game_id: uuid.UUID, round_i
     drawer_id = uuid.UUID(state["drawers"][round_index])
     if drawer_id == user.id:
         raise Forbidden("The artist can't guess!", code="drawer_cannot_guess")
-    already = await db.scalar(select(GameSubmission.id).where(GameSubmission.session_id == game.id, GameSubmission.user_id == user.id, GameSubmission.round_index == round_index))
+    already = await db.scalar(
+        select(GameSubmission.id).where(
+            GameSubmission.session_id == game.id, GameSubmission.user_id == user.id, GameSubmission.round_index == round_index
+        )
+    )
     if already:
         raise Conflict("You already guessed it!", code="already_guessed")
 
@@ -338,7 +373,11 @@ async def submit_guess(db: AsyncSession, user: User, game_id: uuid.UUID, round_i
     points = int(100 + 300 * remaining)
     try:
         async with db.begin_nested():
-            db.add(GameSubmission(session_id=game.id, user_id=user.id, round_index=round_index, answer="correct", is_correct=True, points=points))
+            db.add(
+                GameSubmission(
+                    session_id=game.id, user_id=user.id, round_index=round_index, answer="correct", is_correct=True, points=points
+                )
+            )
     except IntegrityError:
         raise Conflict("You already guessed it!", code="already_guessed")
     player.score += points
@@ -347,7 +386,11 @@ async def submit_guess(db: AsyncSession, user: User, game_id: uuid.UUID, round_i
         drawer.score += 50
 
     guessers = [p for p in await _players(db, game.id) if p.active and p.user_id != drawer_id]
-    correct_count = await db.scalar(select(func.count()).select_from(GameSubmission).where(GameSubmission.session_id == game.id, GameSubmission.round_index == round_index))
+    correct_count = await db.scalar(
+        select(func.count())
+        .select_from(GameSubmission)
+        .where(GameSubmission.session_id == game.id, GameSubmission.round_index == round_index)
+    )
     if correct_count >= len(guessers):
         await _close_phase_early(db, game)
     else:
@@ -389,7 +432,9 @@ async def view(db: AsyncSession, user: User, game_id: uuid.UUID) -> GameView:
         answered_ids = {s.user_id for s in subs}
         mine = next((s for s in subs if s.user_id == user.id), None)
         phase = state["phase"]
-        base = dict(index=idx, total=_total_rounds(game), phase=phase, phase_ends_at=_dt(state.get("phase_ends_at")), answered_count=len(subs))
+        base = dict(
+            index=idx, total=_total_rounds(game), phase=phase, phase_ends_at=_dt(state.get("phase_ends_at")), answered_count=len(subs)
+        )
         if game.game_type == "trivia":
             q = TRIVIA[state["order"][idx]]
             revealed = phase in ("reveal", "round_end") or game.status == "finished"
@@ -426,12 +471,24 @@ async def view(db: AsyncSession, user: User, game_id: uuid.UUID) -> GameView:
             )
 
     return GameView(
-        id=game.id, code=game.code, game_type=game.game_type, status=game.status, host_id=game.host_id, room_id=game.room_id,
+        id=game.id,
+        code=game.code,
+        game_type=game.game_type,
+        status=game.status,
+        host_id=game.host_id,
+        room_id=game.room_id,
         players=sorted(
-            [GamePlayerOut(**people[p.user_id].model_dump(), score=p.score, active=p.active, answered=p.user_id in answered_ids) for p in players],
+            [
+                GamePlayerOut(**people[p.user_id].model_dump(), score=p.score, active=p.active, answered=p.user_id in answered_ids)
+                for p in players
+            ],
             key=lambda x: -x.score,
         ),
-        round=round_view, settings=game.settings, version=game.version, server_time=utcnow(), created_at=game.created_at,
+        round=round_view,
+        settings=game.settings,
+        version=game.version,
+        server_time=utcnow(),
+        created_at=game.created_at,
     )
 
 
@@ -448,6 +505,8 @@ async def my_open_games(db: AsyncSession, user: User) -> list[GameSession]:
 
 async def room_games(db: AsyncSession, room_id: uuid.UUID) -> list[GameSession]:
     rows = await db.scalars(
-        select(GameSession).where(GameSession.room_id == room_id, GameSession.status.in_(["lobby", "active"])).order_by(GameSession.created_at.desc())
+        select(GameSession)
+        .where(GameSession.room_id == room_id, GameSession.status.in_(["lobby", "active"]))
+        .order_by(GameSession.created_at.desc())
     )
     return list(rows)
