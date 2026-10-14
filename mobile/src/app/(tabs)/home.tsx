@@ -23,6 +23,7 @@ import { useAnswerDaily, useClaimQuest, useHome, useMe } from '@/api/hooks';
 import type { DailyQuestion, Quest } from '@/api/types';
 import { Avatar } from '@/components/avatar/Avatar';
 import { CommunityCard, RoomCard } from '@/components/cards';
+import { EventBanner } from '@/components/moments/EventBanner';
 import { useTabBarInset } from '@/components/TabBar';
 import { Button, Card, EmptyState, ErrorState, IconButton, PressableScale, ProgressBar, RoomCardSkeleton, SectionHeader, Skeleton, Text } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
@@ -254,6 +255,8 @@ export default function Home() {
               <ChevronRight size={18} color={colors.accent} />
             </PressableScale>
           ) : null}
+
+          <EventBanner />
 
           {/* Quick actions */}
           <Animated.View entering={FadeInDown.duration(350)}>

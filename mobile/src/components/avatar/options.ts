@@ -68,7 +68,7 @@ export function shade(hex: string, amount: number): string {
   return `#${[channel(16), channel(8), channel(0)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
-export type Cosmetic = { key: string; slot: 'hair' | 'outfit' | 'accessory' | 'scene'; value: string; name: string; price: number };
+export type Cosmetic = { key: string; slot: 'hair' | 'outfit' | 'accessory' | 'scene'; value: string; name: string; price: number; eventOnly?: boolean };
 
 // Mirrors backend COSMETICS. The server is the authority on ownership and prices.
 export const COSMETICS: Cosmetic[] = [
@@ -97,6 +97,7 @@ export const COSMETICS: Cosmetic[] = [
   { key: 'acc_sunglasses', slot: 'accessory', value: 'sunglasses', name: 'Sunglasses', price: 60 },
   { key: 'acc_flower', slot: 'accessory', value: 'flower', name: 'Flower clip', price: 50 },
   { key: 'acc_crown', slot: 'accessory', value: 'crown', name: 'Tiny crown', price: 200 },
+  { key: 'acc_scarf', slot: 'accessory', value: 'scarf', name: 'Cozy scarf', price: 0, eventOnly: true },
   { key: 'scene_beach', slot: 'scene', value: 'beach', name: 'Beach at dusk', price: 150 },
   { key: 'scene_space', slot: 'scene', value: 'space', name: 'Space station', price: 250 },
 ];

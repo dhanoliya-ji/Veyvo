@@ -283,6 +283,15 @@ function Accessory({ style, accent }: { style: string; accent: string }) {
           <Circle cx={68} cy={27} r={2.3} fill="#FFC857" />
         </G>
       );
+    case 'scarf':
+      return (
+        <G>
+          <Path d="M55 72 L60 92 L53.5 93 L50 74 Z" fill="#C96A41" />
+          <Path d="M32 65 C40 72 60 72 68 65 L69.5 73 C60 80 40 80 30.5 73 Z" fill="#E8875B" />
+          <Path d="M38 70.5 L38.5 77 M46 72.5 L46 79 M54 72.5 L54 79 M62 70.5 L61.5 77" stroke="#C96A41" strokeWidth={1.6} strokeLinecap="round" />
+          <Path d="M54.5 86 L60.5 85.2 M53.5 82 L59.5 81.2" stroke="#F5F5FB" strokeWidth={1.2} opacity={0.7} />
+        </G>
+      );
     case 'crown':
       return (
         <G>

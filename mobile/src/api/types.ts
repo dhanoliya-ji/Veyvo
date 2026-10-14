@@ -193,8 +193,8 @@ export type Community = {
   created_at: string;
 };
 
-export type CommunityPost = { id: UUID; community_id: UUID; author: UserSummary; content: string; created_at: string };
-export type CommunityMember = UserSummary & { role: string; status: string };
+export type CommunityPost = { id: UUID; community_id: UUID; author: UserSummary; content: string; created_at: string; author_rank?: string };
+export type CommunityMember = UserSummary & { role: string; status: string; rank?: string; points?: number };
 
 export type GamePlayer = UserSummary & { score: number; active: boolean; answered: boolean };
 
@@ -248,7 +248,7 @@ export type Notification = {
 
 export type Quest = { key: string; title: string; target: number; progress: number; gems: number; xp: number; completed: boolean; claimed: boolean };
 export type Reward = { gems: number; xp: number; new_balance: number; level: number; leveled_up: boolean };
-export type ShopItem = { key: string; slot: 'hair' | 'outfit' | 'accessory' | 'scene'; value: string; name: string; price: number; owned: boolean };
+export type ShopItem = { key: string; slot: 'hair' | 'outfit' | 'accessory' | 'scene'; value: string; name: string; price: number; owned: boolean; event_only?: boolean };
 
 export type DailyQuestion = {
   day: string;

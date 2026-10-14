@@ -39,6 +39,8 @@ import {
   Text,
   confirm,
 } from '@/components/ui';
+import { RANK_LABELS } from '@/api/moments-extra';
+import { LeaderboardTab } from '@/components/moments/LeaderboardTab';
 import { errorMessage } from '@/lib/api';
 import { plural, timeAgo } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -46,7 +48,7 @@ import { toast } from '@/stores/toast';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
 
-type Tab = 'posts' | 'hangouts' | 'members';
+type Tab = 'posts' | 'hangouts' | 'members' | 'ranks';
 
 export default function CommunityScreen() {
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
@@ -213,12 +215,14 @@ export default function CommunityScreen() {
               { value: 'posts', label: 'Posts' },
               { value: 'hangouts', label: live ? `Hangouts · ${live}` : 'Hangouts' },
               { value: 'members', label: 'Members' },
+              { value: 'ranks', label: 'Ranks' },
             ]}
             value={tab}
             onChange={setTab}
           />
           {tab === 'posts' ? <PostsTab communityId={id} isMember={isMember} isStaff={isStaff} meId={me.data?.id} posts={posts} /> : null}
           {tab === 'hangouts' ? <HangoutsTab communityId={id} isMember={isMember} live={liveRooms} soon={soonRooms} /> : null}
+          {tab === 'ranks' ? <LeaderboardTab communityId={id} /> : null}
           {tab === 'members' ? <MembersTab communityId={id} community={c} meId={me.data?.id} members={members} pending={pending} isStaff={isStaff} /> : null}
         </View>
       )}
@@ -548,7 +552,7 @@ function MembersTab({
             <UserRow
               key={m.id}
               user={m}
-              subtitle={m.id === meId ? 'You' : undefined}
+              subtitle={[m.id === meId ? 'You' : null, m.rank ? RANK_LABELS[m.rank] : null].filter(Boolean).join(' · ') || undefined}
               onPress={canManage(m) ? () => setManaging(m) : undefined}
               right={roleBadge(m.role)}
             />

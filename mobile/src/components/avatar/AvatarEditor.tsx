@@ -56,7 +56,10 @@ export function AvatarEditor({ value, onChange, owned, onLockedPress, previewSiz
   const set = (patch: Partial<AvatarConfig>) => onChange({ ...value, ...patch });
 
   const itemGrid = (slot: 'hair' | 'outfit' | 'accessory') => {
-    const items = COSMETICS.filter((c) => c.slot === slot && (c.price === 0 || owned?.has(c.key) || onLockedPress));
+    // Event-only items appear only once earned; paid items show a lock when a shop link is available.
+    const items = COSMETICS.filter(
+      (c) => c.slot === slot && (c.eventOnly ? owned?.has(c.key) : c.price === 0 || owned?.has(c.key) || onLockedPress),
+    );
     return (
       <View style={styles.grid}>
         {items.map((item) => {

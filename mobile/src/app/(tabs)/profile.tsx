@@ -12,6 +12,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingBag,
+  Sparkles,
   Trophy,
   Users,
 } from 'lucide-react-native';
@@ -186,6 +187,7 @@ export default function Profile() {
             <ListRow icon={Users} iconTone="primary" title="Friends" onPress={() => router.push('/friends')} />
             <ListRow icon={MessageCircle} iconTone="primary" title="Messages" onPress={() => router.push('/messages')} />
             <ListRow icon={Trophy} iconTone="warning" title="Quests & streak" onPress={() => router.push('/quests')} />
+            <ListRow icon={Sparkles} iconTone="accent" title="Moments" subtitle="Your highlights, ready to share" onPress={() => router.push('/moments')} />
             <ListRow icon={ShoppingBag} iconTone="accent" title="Shop" subtitle="Avatar items and room scenes" onPress={() => router.push('/shop')} />
           </ListGroup>
           <ListGroup>

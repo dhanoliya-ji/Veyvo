@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { router } from 'expo-router';
-import { ArrowLeft, Gem, Heart, RotateCcw, Trophy } from 'lucide-react-native';
+import { ArrowLeft, Gem, Heart, RotateCcw, Share2, Trophy } from 'lucide-react-native';
 
 import { GAME_REWARDS } from '@/api/games-extra';
 import { useCreateGame } from '@/api/hooks';
@@ -82,6 +82,7 @@ export function GameFinished({ ctx, onBack }: { ctx: GameCtx; onBack: () => void
 
       <View style={{ gap: space.sm }}>
         <Button title="Play again" icon={RotateCcw} size="lg" onPress={playAgain} loading={create.isPending} fullWidth accessibilityHint="Starts a new game you host" />
+        {isPlayer || wasPlayer ? <Button title="Share your moment" icon={Share2} variant="secondary" size="lg" onPress={() => router.push('/moments')} fullWidth /> : null}
         {others.length && (isPlayer || wasPlayer) ? <Button title="Give kudos" icon={Heart} variant="secondary" size="lg" onPress={() => setKudosOpen(true)} fullWidth /> : null}
         <Button title={game.room_id ? 'Back to the hangout' : 'Back to Games'} icon={ArrowLeft} variant="ghost" onPress={onBack} fullWidth />
       </View>
