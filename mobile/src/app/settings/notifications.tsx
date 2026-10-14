@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Linking, View } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import { Bell, CalendarClock, EyeOff, Gamepad2, Heart, MessageCircle, Send, UserPlus } from 'lucide-react-native';
 
 import { useMe, useUpdatePrivacy } from '@/api/hooks';
 import type { NotificationPref } from '@/api/types';
 import { Button, Card, Header, ListGroup, ListRow, Screen, Text } from '@/components/ui';
-import { disablePushNotifications, enablePushNotifications, pushSupported } from '@/hooks/usePushNotifications';
+import { disablePushNotifications, enablePushNotifications, getPushPermission, pushSupported } from '@/hooks/usePushNotifications';
 import { errorMessage } from '@/lib/api';
 import { toast } from '@/stores/toast';
 import { space } from '@/theme/tokens';
@@ -28,9 +27,7 @@ export default function NotificationSettings() {
   const p = me.data?.privacy;
 
   useEffect(() => {
-    Notifications.getPermissionsAsync()
-      .then((r) => setPermission(r.status))
-      .catch(() => undefined);
+    getPushPermission().then(setPermission);
   }, []);
 
   const set = (patch: Parameters<typeof update.mutate>[0]) => update.mutate(patch, { onError: (e) => toast.error("Couldn't save", errorMessage(e)) });

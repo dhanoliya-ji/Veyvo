@@ -3,34 +3,66 @@ import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Device from 'expo-device';
 import { router } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 
 import { accountApi } from '@/api/hooks';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }),
-});
+type NotificationsModule = typeof import('expo-notifications');
 
-/** Remote push isn't available in Expo Go on Android or on simulators; it needs a development/production build. */
+/** Remote push isn't available in Expo Go (SDK 53+) or on simulators; it needs a development/production build. */
 export function pushSupported(): boolean {
   if (!Device.isDevice || Platform.OS === 'web') return false;
   return Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
 }
 
-async function ensureChannel() {
+let cached: NotificationsModule | null | undefined;
+
+/**
+ * Load expo-notifications lazily. In Expo Go on Android, merely importing the module throws,
+ * so it must never be imported at the top level of any file.
+ */
+export function getNotifications(): NotificationsModule | null {
+  if (cached !== undefined) return cached;
+  if (!pushSupported()) {
+    cached = null;
+    return cached;
+  }
+  try {
+    const mod: NotificationsModule = require('expo-notifications');
+    mod.setNotificationHandler({
+      handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }),
+    });
+    cached = mod;
+  } catch {
+    cached = null;
+  }
+  return cached;
+}
+
+export async function getPushPermission(): Promise<'granted' | 'denied' | 'undetermined' | 'unsupported'> {
+  const N = getNotifications();
+  if (!N) return 'unsupported';
+  try {
+    const { status } = await N.getPermissionsAsync();
+    return status as 'granted' | 'denied' | 'undetermined';
+  } catch {
+    return 'undetermined';
+  }
+}
+
+async function ensureChannel(N: NotificationsModule) {
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
+    await N.setNotificationChannelAsync('default', {
       name: 'Veyvo',
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: N.AndroidImportance.DEFAULT,
       lightColor: '#9385FF',
     });
   }
 }
 
-async function getToken(): Promise<string | null> {
+async function getToken(N: NotificationsModule): Promise<string | null> {
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
   if (!projectId) return null; // configure EAS (see docs/deployment.md) to enable push
-  const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
+  const { data } = await N.getExpoPushTokenAsync({ projectId });
   return data;
 }
 
@@ -38,14 +70,15 @@ export type PushResult = 'enabled' | 'denied' | 'unsupported' | 'error';
 
 /** Ask for permission (call from an explicit user action) and register the device token. */
 export async function enablePushNotifications(): Promise<PushResult> {
-  if (!pushSupported()) return 'unsupported';
+  const N = getNotifications();
+  if (!N) return 'unsupported';
   try {
-    await ensureChannel();
-    const current = await Notifications.getPermissionsAsync();
+    await ensureChannel(N);
+    const current = await N.getPermissionsAsync();
     let status = current.status;
-    if (status !== 'granted') status = (await Notifications.requestPermissionsAsync()).status;
+    if (status !== 'granted') status = (await N.requestPermissionsAsync()).status;
     if (status !== 'granted') return 'denied';
-    const token = await getToken();
+    const token = await getToken(N);
     if (!token) return 'unsupported';
     await accountApi.registerPushToken(token, Platform.OS === 'ios' ? 'ios' : 'android');
     return 'enabled';
@@ -55,8 +88,10 @@ export async function enablePushNotifications(): Promise<PushResult> {
 }
 
 export async function disablePushNotifications() {
+  const N = getNotifications();
+  if (!N) return;
   try {
-    const token = await getToken();
+    const token = await getToken(N);
     if (token) await accountApi.removePushToken(token, Platform.OS === 'ios' ? 'ios' : 'android');
   } catch {
     /* best effort */
@@ -83,13 +118,13 @@ function routeFor(data: Record<string, any> | undefined) {
 /** Re-registers the token if permission was already granted, and opens the right screen when a notification is tapped. */
 export function useNotificationRouting(enabled: boolean) {
   useEffect(() => {
-    if (!enabled || Platform.OS === 'web') return;
+    if (!enabled) return;
+    const N = getNotifications();
+    if (!N) return;
     (async () => {
-      if (!pushSupported()) return;
-      const { status } = await Notifications.getPermissionsAsync().catch(() => ({ status: 'undetermined' as const }));
-      if (status === 'granted') enablePushNotifications();
+      if ((await getPushPermission()) === 'granted') enablePushNotifications();
     })();
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => routeFor(response.notification.request.content.data as Record<string, any>));
+    const sub = N.addNotificationResponseReceivedListener((response) => routeFor(response.notification.request.content.data as Record<string, any>));
     return () => sub.remove();
   }, [enabled]);
 }

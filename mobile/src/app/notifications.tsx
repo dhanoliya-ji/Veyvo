@@ -1,7 +1,7 @@
 import { useMemo, useState, type ComponentType } from 'react';
 import { RefreshControl, SectionList, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import {
   AlertTriangle,
   Award,
@@ -226,7 +226,7 @@ function NotificationRow({ n, meta }: { n: Notification; meta: Meta }) {
   return (
     <Animated.View entering={reduceMotion ? undefined : FadeIn.duration(180)}>
       {target ? (
-        <PressableScale onPress={() => router.push(target)} scaleTo={0.99} style={rowStyle} accessibilityLabel={label}>
+        <PressableScale onPress={() => router.push(target as Href)} scaleTo={0.99} style={rowStyle} accessibilityLabel={label}>
           {content}
         </PressableScale>
       ) : (
