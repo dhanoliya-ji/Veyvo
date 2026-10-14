@@ -96,3 +96,30 @@ async def test_not_enough_players_and_room_access(client):
     assert (await client.post(f"/games/{g2['id']}/join", headers=outsider["headers"])).status_code == 403
     assert (await client.get(f"/games/{g2['id']}", headers=outsider["headers"])).status_code == 403
     assert (await client.post("/games", json={"game_type": "trivia"}, headers=host["headers"])).status_code == 422
+
+
+async def test_werewolf_idle_host_auto_advances(client, monkeypatch):
+
+    from app.services import games as games_service
+
+    players = [await make_user(client) for _ in range(5)]
+    game = await _lobby(client, players[0], players[1:], "werewolf")
+    await client.post(f"/games/{game['id']}/start", headers=players[0]["headers"])
+    # Play the night by taking each player's first legal action.
+    for _ in range(3):
+        for p in players:
+            v = (await client.get(f"/games/{game['id']}", headers=p["headers"])).json()
+            acts = [a for a in v["legal_actions"] if a.get("type") != "advance"]
+            if acts:
+                await client.post(f"/games/{game['id']}/action", json={"action": acts[0]}, headers=p["headers"])
+        v = (await client.get(f"/games/{game['id']}", headers=players[1]["headers"])).json()
+        if v["board"]["phase"] in ("day", "discussion"):
+            break
+    v = (await client.get(f"/games/{game['id']}", headers=players[1]["headers"])).json()
+    if v["status"] != "active" or v["board"]["phase"] not in ("day", "discussion"):
+        return  # the night ended the game; nothing to time out
+    assert v["phase_deadline"]
+    phase = v["board"]["phase"]
+    monkeypatch.setattr(games_service, "WEREWOLF_PHASE_SECONDS", -1)  # deadline already passed
+    v2 = (await client.get(f"/games/{game['id']}", headers=players[1]["headers"])).json()
+    assert v2["board"]["phase"] != phase or v2["status"] == "finished"

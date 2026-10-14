@@ -187,7 +187,7 @@ export default function Icebreaker() {
         <View style={[styles.note, { backgroundColor: colors.surfaceAlt }]}>
           <ShieldCheck size={18} color={colors.success} />
           <Text variant="caption" tone="muted" style={{ flex: 1 }}>
-            Matches last 15 minutes. You can end, report or block at any point, and your partner only sees your avatar and display name.
+            Matches last 15 minutes. You can end, report or block at any point, and your partner only sees your profile picture and display name.
           </Text>
         </View>
         <Button title="Find a match" icon={Search} size="lg" onPress={join} loading={joining} fullWidth />

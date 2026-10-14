@@ -9,6 +9,7 @@ import { QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold, useFonts } from '@expo-google-fonts/inter';
 
 import { useMe } from '@/api/hooks';
+import { IncomingCall } from '@/components/IncomingCall';
 import { AccountBlockedOverlay } from '@/components/safety/AccountBlockedOverlay';
 import { ReportHost } from '@/components/safety/ReportSheet';
 import { ConfirmHost, OfflineBanner, Toaster } from '@/components/ui';
@@ -81,6 +82,7 @@ function Shell() {
       <ConfirmHost />
       <ReportHost />
       <AccountBlockedOverlay />
+      <IncomingCall />
     </>
   );
 }

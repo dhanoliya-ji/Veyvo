@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { Brain, ChevronRight, CircleCheck, Gift, Hash, MessageCircleHeart, Palette, Sparkles, Target } from 'lucide-react-native';
+import { ChevronRight, CircleCheck, Gift, Hash, MessageCircleHeart, Play, Sparkles, Target, Users } from 'lucide-react-native';
 
-import { GAME_META, isApiError } from '@/api/games-extra';
+import { GAME_META, GAME_TYPES, isApiError, playersLabel, useGameCatalog, type GameType } from '@/api/games-extra';
 import { useCreateGame, useDaily, useJoinByCode, useMe, useMyGames, useQuests } from '@/api/hooks';
 import type { GameView } from '@/api/types';
 import { AvatarStack } from '@/components/cards';
+import { GamePreview } from '@/components/games/GamePreview';
 import { GemPill } from '@/components/games/Scoreboard';
 import { Badge, Button, Card, EmptyState, ErrorState, Input, PressableScale, ProgressBar, RowSkeleton, Screen, SectionHeader, Skeleton, Text } from '@/components/ui';
 import { useTabBarInset } from '@/components/TabBar';
@@ -14,31 +15,37 @@ import { errorMessage } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { toast } from '@/stores/toast';
 import { useTheme } from '@/theme/ThemeProvider';
-import { radius, space } from '@/theme/tokens';
+import { radius, screenPadding, space } from '@/theme/tokens';
 
 const CODE_LENGTH = 6;
+const GRID_GAP = space.md;
 
-function gameStatus(g: GameView): string {
-  if (g.status === 'lobby') return 'In the lobby';
-  if (g.round) return `Round ${g.round.index + 1} of ${g.round.total}`;
+function gameStatus(g: GameView, meId: string | undefined): string {
+  const active = g.players.filter((p) => p.active).length;
+  if (g.status === 'lobby') return `In the lobby · ${active}/${g.max_players}`;
+  const turn = (g.board as { turn?: string | null } | null)?.turn;
+  if (meId && (turn === meId || (g.game_type === 'werewolf' && g.legal_actions.some((a) => a.type !== 'advance')))) return 'Your move!';
   return 'In progress';
 }
 
 export default function GamesTab() {
   const { colors } = useTheme();
   const bottom = useTabBarInset();
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.floor((width - screenPadding * 2 - GRID_GAP) / 2);
   const me = useMe();
   const myGames = useMyGames();
   const daily = useDaily();
   const quests = useQuests();
   const create = useCreateGame();
+  const catalog = useGameCatalog();
   const joinByCode = useJoinByCode();
-  const [creating, setCreating] = useState<'trivia' | 'doodle' | null>(null);
+  const [creating, setCreating] = useState<GameType | null>(null);
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState<string | undefined>();
   const [refreshing, setRefreshing] = useState(false);
 
-  const start = (type: 'trivia' | 'doodle') => {
+  const start = (type: GameType) => {
     if (create.isPending) return;
     setCreating(type);
     create.mutate(
@@ -79,7 +86,7 @@ export default function GamesTab() {
 
   const refresh = async () => {
     setRefreshing(true);
-    await Promise.allSettled([myGames.refetch(), daily.refetch(), quests.refetch(), me.refetch()]);
+    await Promise.allSettled([myGames.refetch(), daily.refetch(), quests.refetch(), me.refetch(), catalog.refetch()]);
     setRefreshing(false);
   };
 
@@ -99,37 +106,50 @@ export default function GamesTab() {
         <GemPill gems={me.data?.gems} />
       </View>
       <Text tone="muted" style={{ marginBottom: space.lg }}>
-        Quick games with friends and new people. Every finished game earns gems.
+        Real classics with friends and new people. Every finished game earns gems.
       </Text>
 
-      {/* Hero cards */}
-      <View style={styles.heroRow}>
-        {(['trivia', 'doodle'] as const).map((type) => {
-          const Icon = type === 'trivia' ? Brain : Palette;
-          const tint = type === 'trivia' ? colors.primary : colors.accent;
-          const soft = type === 'trivia' ? colors.primarySoft : colors.accentSoft;
+      {/* Game catalogue */}
+      <View style={styles.grid}>
+        {GAME_TYPES.map((type) => {
+          const meta = GAME_META[type];
+          const info = catalog.data?.find((c) => c.key === type);
+          const players = playersLabel(info?.min_players ?? meta.minPlayers, info?.max_players ?? meta.maxPlayers);
+          const busy = creating === type;
           return (
             <PressableScale
               key={type}
               onPress={() => start(type)}
               disabled={create.isPending}
               hapticFeedback="light"
-              accessibilityLabel={`Start ${GAME_META[type].name}`}
-              accessibilityHint={GAME_META[type].tagline}
-              accessibilityState={{ busy: creating === type }}
-              style={[styles.hero, { backgroundColor: soft, borderColor: tint }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Play ${info?.name ?? meta.name}. ${info?.tagline ?? meta.tagline}. ${players}`}
+              accessibilityState={{ busy, disabled: create.isPending }}
+              style={[styles.gameCard, { backgroundColor: colors.surface, borderColor: colors.border, width: cardWidth }]}
             >
-              <View style={[styles.heroIcon, { backgroundColor: tint }]}>
-                <Icon size={26} color={type === 'trivia' ? colors.onPrimary : colors.onAccent} />
+              <GamePreview type={type} height={96} />
+              <View style={{ gap: 2, paddingHorizontal: space.xs }}>
+                <Text variant="bodyStrong" numberOfLines={1}>
+                  {info?.name ?? meta.name}
+                </Text>
+                <Text variant="caption" tone="muted" numberOfLines={2} style={{ minHeight: 32 }}>
+                  {info?.tagline ?? meta.tagline}
+                </Text>
               </View>
-              <Text variant="heading">{GAME_META[type].name}</Text>
-              <Text variant="caption" tone="muted" numberOfLines={3}>
-                {GAME_META[type].tagline}
-              </Text>
-              <View style={{ flex: 1 }} />
-              <Text variant="label" style={{ color: tint }}>
-                {creating === type ? 'Starting…' : 'Start a game →'}
-              </Text>
+              <View style={styles.cardFooter}>
+                <View style={styles.players}>
+                  <Users size={12} color={colors.textFaint} />
+                  <Text variant="tiny" tone="faint">
+                    {players}
+                  </Text>
+                </View>
+                <View style={[styles.playPill, { backgroundColor: colors.primary }]}>
+                  <Play size={11} color={colors.onPrimary} fill={colors.onPrimary} />
+                  <Text variant="tiny" style={{ color: colors.onPrimary }}>
+                    {busy ? '…' : 'Play'}
+                  </Text>
+                </View>
+              </View>
             </PressableScale>
           );
         })}
@@ -174,14 +194,14 @@ export default function GamesTab() {
         ) : (
           <View style={{ gap: space.sm }}>
             {myGames.data.map((g) => (
-              <Card key={g.id} onPress={() => router.push(`/game/${g.id}`)} accessibilityLabel={`${GAME_META[g.game_type].name}, ${gameStatus(g)}, ${g.players.filter((p) => p.active).length} players. Open`} style={styles.gameRow}>
-                <View style={[styles.smallIcon, { backgroundColor: g.game_type === 'trivia' ? colors.primarySoft : colors.accentSoft }]}>
-                  {g.game_type === 'trivia' ? <Brain size={20} color={colors.primary} /> : <Palette size={20} color={colors.accent} />}
+              <Card key={g.id} onPress={() => router.push(`/game/${g.id}`)} accessibilityLabel={`${GAME_META[g.game_type].name}, ${gameStatus(g, me.data?.id)}, ${g.players.filter((p) => p.active).length} players. Open`} style={styles.gameRow}>
+                <View style={styles.thumb}>
+                  <GamePreview type={g.game_type} height={44} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text variant="bodyStrong">{GAME_META[g.game_type].name}</Text>
                   <Text variant="caption" tone="muted">
-                    {gameStatus(g)} · code {g.code}
+                    {gameStatus(g, me.data?.id)} · code {g.code}
                   </Text>
                 </View>
                 <AvatarStack people={g.players.filter((p) => p.active)} size={24} max={3} />
@@ -263,9 +283,12 @@ export default function GamesTab() {
 
 const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.md, marginBottom: space.xs },
-  heroRow: { flexDirection: 'row', gap: space.md },
-  hero: { flex: 1, minHeight: 190, padding: space.lg, borderRadius: radius.xl, borderWidth: 1.5, gap: space.xs },
-  heroIcon: { width: 48, height: 48, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', marginBottom: space.sm },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP },
+  gameCard: { padding: space.sm, gap: space.sm, borderRadius: radius.xl, borderWidth: StyleSheet.hairlineWidth },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xs, paddingBottom: space.xs },
+  players: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
+  playPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: space.sm, height: 24, borderRadius: radius.pill },
+  thumb: { width: 56, borderRadius: radius.md, overflow: 'hidden' },
   gameRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   smallIcon: { width: 40, height: 40, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
 });

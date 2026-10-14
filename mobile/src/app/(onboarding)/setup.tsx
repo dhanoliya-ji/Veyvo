@@ -4,10 +4,9 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { AtSign, BellRing, Eye, MessageCircle, UserPlus } from 'lucide-react-native';
 
 import { qk, useInterests } from '@/api/hooks';
-import type { AvatarConfig, Me, Privacy } from '@/api/types';
+import type { Me, Privacy } from '@/api/types';
 import { PhotoGrid } from '@/components/photos/PhotoGrid';
 import { useMyPhotos } from '@/api/photos-extra';
-import { randomAvatar } from '@/components/avatar/options';
 import { InterestPicker } from '@/components/InterestPicker';
 import { Button, ErrorState, Header, Input, ListGroup, ListRow, ProgressBar, RowSkeleton, Screen, Text } from '@/components/ui';
 import { enablePushNotifications } from '@/hooks/usePushNotifications';
@@ -31,8 +30,6 @@ export default function Setup() {
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [usernameState, setUsernameState] = useState<{ checking: boolean; ok: boolean | null; reason?: string }>({ checking: false, ok: null });
-  // Legacy field still required by the API; profiles now use real photos.
-  const [avatar] = useState<AvatarConfig>(() => randomAvatar());
   const [selected, setSelected] = useState<number[]>([]);
   const [privacy, setPrivacy] = useState<Partial<Privacy>>({ profile_visibility: 'everyone', discoverable: true, show_online_status: 'friends', who_can_friend_request: 'everyone', allow_icebreakers: true });
   const [notifications, setNotifications] = useState(false);
@@ -75,7 +72,6 @@ export default function Setup() {
         username: username.trim().toLowerCase(),
         display_name: displayName.trim(),
         bio: bio.trim(),
-        avatar,
         interest_ids: selected,
         privacy,
       });

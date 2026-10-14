@@ -15,7 +15,6 @@ import type {
   Friend,
   FriendRequest,
   GameView,
-  GuessResult,
   Home,
   IcebreakerSession,
   Interest,
@@ -270,6 +269,7 @@ export function useCreateRoom() {
   });
 }
 
+export const startCallRequest = (userId: string) => post<RoomDetail>('/rooms/calls', { user_id: userId });
 export const joinRoomRequest = (id: string) => post<RoomDetail>(`/rooms/${id}/join`);
 export const leaveRoomRequest = (id: string) => post(`/rooms/${id}/leave`);
 export const roomMediaToken = (id: string) => post<MediaToken>(`/rooms/${id}/media-token`);
@@ -347,21 +347,24 @@ export const useRoomGames = (roomId: string, enabled = true) =>
 
 export function useGameActions(id: string) {
   const qc = useQueryClient();
-  const set = (g: GameView) => qc.setQueryData(qk.game(id), g);
+  // Never replace a newer view (e.g. one fetched after a realtime event) with an older response.
+  const set = (g: GameView) => qc.setQueryData<GameView>(qk.game(id), (old) => (old && old.version > g.version ? old : g));
   return {
     join: useMutation({ mutationFn: () => post<GameView>(`/games/${id}/join`), onSuccess: set }),
     leave: useMutation({ mutationFn: () => post(`/games/${id}/leave`), onSuccess: () => qc.invalidateQueries({ queryKey: qk.myGames }) }),
     start: useMutation({ mutationFn: () => post<GameView>(`/games/${id}/start`), onSuccess: set }),
-    answer: useMutation({
-      mutationFn: (args: { round_index: number; choice: number }) => post<{ accepted: boolean }>(`/games/${id}/answer`, args),
-      onSuccess: () => qc.invalidateQueries({ queryKey: qk.game(id) }),
+    /** Send one game action; `version` must be the version the player saw (409 `stale_version` otherwise). */
+    act: useMutation({
+      mutationFn: (body: { action: { type: string; [key: string]: unknown }; version: number }) => post<GameView>(`/games/${id}/action`, body),
+      onSuccess: set,
     }),
-    guess: useMutation({ mutationFn: (args: { round_index: number; guess: string }) => post<GuessResult>(`/games/${id}/guess`, args) }),
   };
 }
 
 export function useCreateGame() {
-  return useMutation({ mutationFn: (body: { game_type: 'trivia' | 'doodle'; room_id?: string; rounds?: number }) => post<GameView>('/games', body) });
+  return useMutation({
+    mutationFn: (body: { game_type: GameView['game_type']; room_id?: string; options?: Record<string, unknown> }) => post<GameView>('/games', body),
+  });
 }
 
 export function useJoinByCode() {

@@ -6,7 +6,6 @@ import { CalendarClock, CloudOff, DoorClosed, Flag, Lock, Play, SearchX, ShieldA
 import type { RoomDetail } from '@/api/types';
 import type { RoomErrorKind } from '@/api/rooms-extra';
 import { UserRow } from '@/components/cards';
-import { SceneBackground } from '@/components/scene/SceneBackground';
 import { openReport } from '@/components/safety/ReportSheet';
 import { Badge, Button, Card, Header, IconButton, Screen, Text } from '@/components/ui';
 import { eventTime } from '@/lib/format';
@@ -112,7 +111,7 @@ export function ScheduledView({ room, isHost, starting, onStart, nowLive }: Sche
     >
       <ScrollView contentContainerStyle={{ gap: space.lg, paddingBottom: space.xxl }} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <SceneBackground scene={room.scene} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.primarySoft }]} />
           <View style={[styles.when, { backgroundColor: 'rgba(16,17,26,0.78)' }]}>
             <CalendarClock size={14} color="#F5F5FB" />
             <Text variant="label" style={{ color: '#F5F5FB' }}>

@@ -8,6 +8,7 @@ import { AlertCircle, ArrowLeft, Ban, Eraser, Flag, Lock, MessageCircleHeart, Mo
 import { markConversationRead, qk, sendMessageRequest, useBlock, useConversation, useDeleteMessage, useMe, useMessages } from '@/api/hooks';
 import type { Conversation, LocalMessage, Page } from '@/api/types';
 import { patchCachedMessage, useClearConversation } from '@/api/social-extra';
+import { CallButton } from '@/components/CallButton';
 import { UserPhoto } from '@/components/UserPhoto';
 import { openReport } from '@/components/safety/ReportSheet';
 import { EmptyState, ErrorState, IconButton, ListGroup, ListRow, PressableScale, RowSkeleton, Screen, Sheet, Text, confirm } from '@/components/ui';
@@ -361,6 +362,7 @@ function ChatHeader({ conversation, typing, onMenu }: { conversation?: Conversat
       ) : (
         <View style={{ flex: 1 }} />
       )}
+      {other && conversation?.can_message ? <CallButton userId={other.id} name={other.display_name} compact /> : null}
       {other ? <IconButton icon={MoreHorizontal} label="Chat options" onPress={onMenu} /> : null}
     </View>
   );

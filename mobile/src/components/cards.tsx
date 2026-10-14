@@ -1,12 +1,11 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { BookOpen, CalendarClock, Lock, MessageSquareText, Mic, Users } from 'lucide-react-native';
+import { BookOpen, CalendarClock, Lock, MessageSquareText, Mic, Users, Video } from 'lucide-react-native';
 
 import type { Community, Room, UserSummary } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
 import { UserPhoto } from '@/components/UserPhoto';
-import { SceneBackground } from '@/components/scene/SceneBackground';
+import { Image } from 'expo-image';
 import { Badge, PressableScale, Text } from '@/components/ui';
 import { LiveDot } from '@/components/LiveDot';
 import { eventTime, plural, VIBE_LABELS } from '@/lib/format';
@@ -37,7 +36,9 @@ export function AvatarStack({ people, size = 26, max = 4, extra = 0 }: { people:
 export function RoomCard({ room, width = 264, onPress }: { room: Room; width?: number | `${number}%`; onPress?: () => void }) {
   const { colors } = useTheme();
   const live = room.status === 'live';
-  const FormatIcon = room.kind === 'study' ? BookOpen : room.format === 'voice' ? Mic : MessageSquareText;
+  const FormatIcon = room.kind === 'study' ? BookOpen : room.format === 'video' ? Video : room.format === 'voice' ? Mic : MessageSquareText;
+  // Real people inside (host first). A photo collage instead of an illustration.
+  const faces = [...(room.host ? [room.host] : []), ...room.participants_preview.filter((p) => p.id !== room.host?.id)].slice(0, 3);
   const label = `${room.title}. ${live ? `${plural(room.participant_count, 'person', 'people')} inside` : room.scheduled_for ? `Starts ${eventTime(room.scheduled_for)}` : ''}. Hosted by ${room.host?.display_name ?? 'someone'}.`;
 
   return (
@@ -48,8 +49,27 @@ export function RoomCard({ room, width = 264, onPress }: { room: Room; width?: n
       accessibilityHint={live ? 'Opens the hangout' : 'Opens hangout details'}
       style={[styles.roomCard, { width, backgroundColor: colors.surface, borderColor: colors.border }]}
     >
-      <View style={styles.scene}>
-        <SceneBackground scene={room.scene} />
+      <View style={[styles.scene, { backgroundColor: colors.surfaceAlt }]}>
+        <View style={styles.collage}>
+          {faces.length ? (
+            faces.map((p, i) =>
+              p.photo_url ? (
+                <Image key={p.id} source={{ uri: p.photo_url }} style={[styles.face, { flex: i === 0 ? 1.4 : 1 }]} contentFit="cover" cachePolicy="memory-disk" />
+              ) : (
+                <View key={p.id} style={[styles.face, styles.faceFallback, { flex: i === 0 ? 1.4 : 1, backgroundColor: colors.primarySoft }]}>
+                  <Text variant="title" tone="primary">
+                    {p.display_name.slice(0, 1).toUpperCase()}
+                  </Text>
+                </View>
+              ),
+            )
+          ) : (
+            <View style={[styles.face, styles.faceFallback, { flex: 1 }]}>
+              <FormatIcon size={30} color={colors.textFaint} />
+            </View>
+          )}
+        </View>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(16,17,26,0.18)' }]} pointerEvents="none" />
         <View style={styles.sceneTop}>
           {live ? (
             <View style={[styles.livePill, { backgroundColor: 'rgba(16,17,26,0.72)' }]}>
@@ -87,7 +107,7 @@ export function RoomCard({ room, width = 264, onPress }: { room: Room; width?: n
         <View style={styles.metaRow}>
           <FormatIcon size={13} color={colors.textMuted} />
           <Text variant="caption" tone="muted" numberOfLines={1} style={{ flex: 1 }}>
-            {room.kind === 'study' ? 'Study room' : room.format === 'voice' ? 'Voice' : 'Text'} · {room.host?.display_name ?? 'Host left'}
+            {room.kind === 'study' ? 'Study room' : room.format === 'video' ? 'Video' : room.format === 'voice' ? 'Voice' : 'Text'} · {room.host?.display_name ?? 'Host left'}
           </Text>
           {room.friends_inside > 0 ? <Badge label={`${room.friends_inside} friend${room.friends_inside > 1 ? 's' : ''}`} tone="success" /> : null}
         </View>
@@ -172,7 +192,10 @@ export function UserRow({ user, subtitle, right, onPress, online }: { user: User
 const styles = StyleSheet.create({
   roomCard: { borderRadius: radius.xl, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   scene: { height: 120, overflow: 'hidden' },
-  sceneTop: { flexDirection: 'row', justifyContent: 'space-between', padding: space.sm },
+  sceneTop: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', padding: space.sm },
+  collage: { ...StyleSheet.absoluteFill, flexDirection: 'row', gap: 2 },
+  face: { height: '100%' },
+  faceFallback: { alignItems: 'center', justifyContent: 'center' },
   sceneBottom: { position: 'absolute', left: space.sm, bottom: space.sm },
   livePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, height: 24, borderRadius: radius.pill },
   iconPill: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

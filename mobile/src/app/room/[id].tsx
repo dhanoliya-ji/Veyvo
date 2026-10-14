@@ -18,11 +18,15 @@ import {
   Power,
   Settings2,
   Smile,
+  SwitchCamera,
   UserPlus,
+  Video,
+  VideoOff,
   X,
 } from 'lucide-react-native';
 
 import { joinRoomRequest, leaveRoomRequest, qk, useBlocked, useCreateGame, useMe, useRoom, useRoomAction, useRoomChat, useRoomGames } from '@/api/hooks';
+import { GAME_META, ROOM_GAME_TYPES, type GameType } from '@/api/games-extra';
 import { describeRoomError, setRoomTimer, upsertRoomMessage } from '@/api/rooms-extra';
 import type { GameView, Participant, RoomDetail, RoomMessage, TimerState } from '@/api/types';
 import { LiveDot } from '@/components/LiveDot';
@@ -37,7 +41,7 @@ import { RoomSettingsSheet } from '@/components/room/RoomSettingsSheet';
 import { EndedView, JoiningView, RoomErrorView, ScheduledView, leaveScreen } from '@/components/room/RoomStates';
 import { ConnectionBanner } from '@/components/room/VoiceBanner';
 import { openReport } from '@/components/safety/ReportSheet';
-import { SceneStage, type StageSeat } from '@/components/scene/SceneStage';
+import { VideoGrid } from '@/components/room/VideoGrid';
 import { Button, Divider, IconButton, ListGroup, ListRow, PressableScale, SegmentedControl, Sheet, Text, confirm } from '@/components/ui';
 import { ApiError, errorMessage } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
@@ -221,15 +225,19 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
   const [inviteOpen, setInviteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [gamePickerOpen, setGamePickerOpen] = useState(false);
   const [reactions, setReactions] = useState<FloatingReaction[]>([]);
   const [dismissedGames, setDismissedGames] = useState<Set<string>>(new Set());
 
-  const isVoice = room.format === 'voice';
+  const isVoice = room.format === 'voice' || room.format === 'video';
+  const isVideo = room.format === 'video';
   const iAmHost = !!meId && room.host?.id === meId;
   const mine = room.participants.find((p) => p.id === meId);
   const handRaised = !!mine?.hand_raised;
   const mutedByHost = !!mine?.muted_by_host;
-  const voice = useVoice(roomId, isVoice && room.media_available, room.can_speak);
+  const friendIds = useMemo(() => new Set(room.participants.filter((p) => p.is_friend).map((p) => p.id)), [room.participants]);
+  // Friends' cameras show automatically; anyone else's video stays hidden (not even downloaded) until tapped.
+  const voice = useVoice(roomId, isVoice && room.media_available, room.can_speak, { canVideo: isVideo && !!room.can_video, autoShowVideo: (id) => friendIds.has(id) || room.kind === 'call' });
 
   const blockedIds = useMemo(() => new Set((blocked.data ?? []).map((b) => b.id)), [blocked.data]);
   const blockedRef = useRef(blockedIds);
@@ -306,20 +314,6 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
   }, [phaseEndsAt, roomId, qc]);
 
   const presentIds = useMemo(() => new Set(room.participants.map((p) => p.id)), [room.participants]);
-  const seats: StageSeat[] = room.participants.map((p) => {
-    const isMe = p.id === meId;
-    const level = voice.speaking[p.id];
-    return {
-      id: p.id,
-      name: isMe ? 'You' : p.display_name,
-      avatar: p.avatar,
-      speaking: level !== undefined,
-      level,
-      muted: p.muted_by_host || (isMe && isVoice && room.can_speak && !voice.micOn),
-      handRaised: p.hand_raised,
-      badge: p.role === 'host' ? 'Host' : p.role === 'moderator' ? 'Mod' : undefined,
-    };
-  });
 
   const activeGame = (games.data ?? []).find((g: GameView) => (g.status === 'lobby' || g.status === 'active') && !dismissedGames.has(g.id));
   const chatLocked = room.kind === 'study' && room.timer?.phase === 'focus' && !room.can_moderate;
@@ -359,10 +353,11 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
     });
   };
 
-  const startGame = async () => {
-    setMoreOpen(false);
+  const startGame = async (gameType: GameType) => {
+    setGamePickerOpen(false);
+    if (createGame.isPending) return;
     try {
-      const game = await createGame.mutateAsync({ game_type: 'trivia', room_id: roomId });
+      const game = await createGame.mutateAsync({ game_type: gameType, room_id: roomId });
       qc.invalidateQueries({ queryKey: qk.roomGames(roomId) });
       router.push(`/game/${game.id}`);
     } catch (e) {
@@ -453,7 +448,7 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
                   </Text>
                 </View>
                 <Text variant="caption" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
-                  {room.kind === 'study' ? 'Study' : isVoice ? 'Voice' : 'Text'}
+                  {room.kind === 'call' ? 'Video call' : room.kind === 'study' ? 'Study' : isVideo ? 'Video' : isVoice ? 'Voice' : 'Text'}
                   {room.visibility === 'private' ? ' · Invite-only' : ''}
                   {room.host ? ` · ${iAmHost ? 'You host' : `Hosted by ${room.host.display_name}`}` : ''}
                 </Text>
@@ -464,7 +459,22 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
 
           <View style={{ paddingHorizontal: space.md, gap: space.sm }}>
             <ConnectionBanner voice={voice} serverHasVoice={!isVoice || room.media_available} realtimeStatus={realtimeStatus} online={online} />
-            <SceneStage scene={room.scene} seats={seats} height={stageHeight} onPressSeat={(seat) => setSelected(room.participants.find((p) => p.id === seat.id) ?? null)} reactions={reactions} />
+            {isVoice ? (
+              <ScrollView style={{ maxHeight: isVideo ? windowHeight * 0.48 : stageHeight }} contentContainerStyle={{ paddingVertical: 2 }} nestedScrollEnabled>
+                <VideoGrid
+                  participants={room.participants}
+                  meId={meId ?? ''}
+                  videos={voice.videos}
+                  camerasOn={voice.camerasOn}
+                  speaking={voice.speaking}
+                  compact={!isVideo}
+                  reactions={reactions}
+                  onReveal={voice.setVideoVisible}
+                  onPressTile={setSelected}
+                  onReport={(p) => openReport({ targetType: 'user', targetId: p.id, subject: `${p.display_name} in this hangout`, blockUserId: p.id })}
+                />
+              </ScrollView>
+            ) : null}
             <View style={[styles.roleRow, { backgroundColor: colors.surface, borderColor: colors.border }]} accessibilityLiveRegion="polite">
               <RoleIcon size={16} color={room.can_speak && voice.micOn ? colors.success : colors.textMuted} />
               <Text variant="label" style={{ flex: 1 }} numberOfLines={1}>
@@ -481,7 +491,7 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
               <Animated.View entering={reduceMotion ? undefined : FadeIn} exiting={reduceMotion ? undefined : FadeOut} style={[styles.gameBanner, { backgroundColor: colors.accentSoft }]}>
                 <Gamepad2 size={18} color={colors.accent} />
                 <Text variant="label" style={{ flex: 1 }} numberOfLines={2}>
-                  {activeGame.game_type === 'trivia' ? 'Trivia' : 'Doodle'} {activeGame.status === 'lobby' ? 'starting' : 'in progress'} · {activeGame.players.length} playing
+                  {GAME_META[activeGame.game_type]?.name ?? 'A game'} {activeGame.status === 'lobby' ? 'starting' : 'in progress'} · {activeGame.players.length} playing
                 </Text>
                 <Button title="Join" size="sm" variant="accent" onPress={() => router.push(`/game/${activeGame.id}`)} accessibilityLabel="Join the game" />
                 <IconButton icon={X} size={36} label="Dismiss game banner" onPress={() => setDismissedGames((s) => new Set(s).add(activeGame.id))} />
@@ -555,6 +565,27 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
                 accessibilityHint={!micReady && !mutedByHost ? 'Voice is not connected yet' : undefined}
               />
             ) : null}
+            {isVideo && room.can_speak ? (
+              <ControlButton
+                icon={voice.camOn ? Video : VideoOff}
+                label={voice.camOn ? 'Camera on' : 'Camera'}
+                tone={voice.camOn ? 'on' : 'off'}
+                busy={voice.camBusy}
+                disabled={!micReady}
+                onPress={() => {
+                  if (!room.can_video && !voice.camOn) {
+                    if (room.video_requires_verification) {
+                      toast.show({ title: 'Get verified to use your camera', message: 'Verification keeps video safe for everyone. It takes one selfie.', tone: 'info' });
+                      router.push('/verification');
+                    } else toast.show({ title: 'The host turned your camera off', tone: 'warning' });
+                    return;
+                  }
+                  voice.toggleCamera();
+                }}
+                accessibilityLabel={voice.camOn ? 'Turn camera off' : 'Turn camera on'}
+              />
+            ) : null}
+            {isVideo && voice.camOn ? <ControlButton icon={SwitchCamera} label="Flip" onPress={voice.flipCamera} accessibilityLabel="Switch between front and back camera" /> : null}
             {showHand ? (
               <ControlButton
                 icon={Hand}
@@ -586,7 +617,16 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
       <Sheet visible={moreOpen} onClose={() => setMoreOpen(false)} title="More" scroll>
         <View style={{ gap: space.lg }}>
           <ListGroup>
-            <ListRow icon={Gamepad2} iconTone="accent" title="Start a trivia game" subtitle="Everyone here can join in." onPress={startGame} />
+            <ListRow
+              icon={Gamepad2}
+              iconTone="accent"
+              title="Start a game"
+              subtitle="Truth or Dare, Werewolf, Crazy Eights or Ludo"
+              onPress={() => {
+                setMoreOpen(false);
+                setGamePickerOpen(true);
+              }}
+            />
             {canInvite ? (
               <>
                 <Divider inset={64} />
@@ -644,6 +684,17 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
             />
           </ListGroup>
         </View>
+      </Sheet>
+
+      <Sheet visible={gamePickerOpen} onClose={() => setGamePickerOpen(false)} title="Start a game" scroll>
+        <ListGroup>
+          {ROOM_GAME_TYPES.map((type, i) => (
+            <View key={type}>
+              {i ? <Divider inset={64} /> : null}
+              <ListRow icon={Gamepad2} iconTone="accent" title={GAME_META[type].name} subtitle={`${GAME_META[type].tagline} · ${GAME_META[type].minPlayers}–${GAME_META[type].maxPlayers} players`} onPress={() => startGame(type)} />
+            </View>
+          ))}
+        </ListGroup>
       </Sheet>
 
       <Sheet visible={rulesOpen} onClose={() => setRulesOpen(false)} title="Room rules" scroll>

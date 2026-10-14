@@ -2,9 +2,7 @@ import { forwardRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { Moment } from '@/api/moments-extra';
-import type { AvatarConfig, Scene } from '@/api/types';
-import { Avatar } from '@/components/avatar/Avatar';
-import { SceneBackground } from '@/components/scene/SceneBackground';
+import { UserPhoto, type PhotoUser } from '@/components/UserPhoto';
 import { Text } from '@/components/ui';
 import { radius, space } from '@/theme/tokens';
 
@@ -16,11 +14,12 @@ const MUTED = '#A5A8BA';
 const VIOLET = '#9385FF';
 const CORAL = '#FF8F9A';
 
-const SCENE_FOR: Record<string, Scene> = {
-  game_finished: 'rooftop',
-  streak_milestone: 'campfire',
-  level_up: 'space',
-  friend_made: 'cafe',
+const ACCENT_FOR: Record<string, string> = {
+  game_finished: '#6D5DF6',
+  room_hangout: '#3D7BD8',
+  streak_milestone: '#E8875B',
+  level_up: '#2FA884',
+  friend_made: '#E2607A',
 };
 
 export function momentHeadline(m: Moment): { big: string; label: string } {
@@ -41,13 +40,13 @@ export function momentHeadline(m: Moment): { big: string; label: string } {
   }
 }
 
-type Props = { moment: Moment; avatar?: Partial<AvatarConfig>; name?: string; width: number };
+type Props = { moment: Moment; user?: PhotoUser; name?: string; width: number };
 
 /**
- * Shareable recap card. Shows only the owner's avatar and numbers — never anyone else's name or face.
+ * Shareable recap card. Shows only the owner's photo and numbers — never anyone else's name or face.
  */
-export const MomentCard = forwardRef<View, Props>(function MomentCard({ moment, avatar, name, width }, ref) {
-  const scene: Scene = moment.kind === 'room_hangout' && moment.stats?.scene ? (moment.stats.scene as Scene) : SCENE_FOR[moment.kind] ?? 'cafe';
+export const MomentCard = forwardRef<View, Props>(function MomentCard({ moment, user, name, width }, ref) {
+  const accent = ACCENT_FOR[moment.kind] ?? VIOLET;
   const head = momentHeadline(moment);
   const height = Math.round(width * 1.25);
   const date = new Date(moment.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -55,7 +54,9 @@ export const MomentCard = forwardRef<View, Props>(function MomentCard({ moment, 
   return (
     <View ref={ref} collapsable={false} style={[styles.card, { width, height }]} accessible accessibilityLabel={`${moment.title}. ${head.big} ${head.label}.`}>
       <View style={[styles.scene, { height: height * 0.46 }]}>
-        <SceneBackground scene={scene} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: accent }]} />
+        <View style={[styles.glow, { width: width * 0.9, height: width * 0.9, borderRadius: width, left: -width * 0.25, top: -width * 0.35 }]} />
+        <View style={[styles.glow, { width: width * 0.6, height: width * 0.6, borderRadius: width, right: -width * 0.2, bottom: -width * 0.3 }]} />
         <View style={styles.brandPill}>
           <View style={styles.logo}>
             <Text variant="label" style={{ color: INK }} maxFontSizeMultiplier={1}>
@@ -68,7 +69,7 @@ export const MomentCard = forwardRef<View, Props>(function MomentCard({ moment, 
         </View>
       </View>
       <View style={[styles.avatarRing, { top: height * 0.46 - width * 0.14 }]}>
-        <Avatar config={avatar} size={width * 0.26} />
+        <UserPhoto user={user} size={width * 0.26} showVerified={false} />
       </View>
       <View style={[styles.body, { paddingTop: width * 0.15 }]}>
         <Text variant="subheading" style={{ color: MUTED }} center maxFontSizeMultiplier={1}>
@@ -96,6 +97,7 @@ export const MomentCard = forwardRef<View, Props>(function MomentCard({ moment, 
 const styles = StyleSheet.create({
   card: { backgroundColor: SURFACE, borderRadius: radius.xxl, overflow: 'hidden' },
   scene: { width: '100%', overflow: 'hidden' },
+  glow: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.12)' },
   brandPill: { position: 'absolute', top: space.md, left: space.md, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(16,17,26,0.7)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill },
   logo: { width: 20, height: 20, borderRadius: 6, backgroundColor: VIOLET, alignItems: 'center', justifyContent: 'center' },
   avatarRing: { position: 'absolute', alignSelf: 'center', padding: 5, borderRadius: 999, backgroundColor: SURFACE },

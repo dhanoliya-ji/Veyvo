@@ -8,6 +8,7 @@ by the engine; illegal moves are rejected. Dice and shuffles use server-side ran
 import random
 import secrets
 import uuid
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
+from app.core.store import get_store
 from app.games import ENGINES
 from app.games.base import IllegalMove
 from app.models import GamePlayer, GameSession, Room, User
@@ -23,12 +25,15 @@ from app.services import moments, rewards
 from app.services.users import blocked_ids, friend_ids, summaries
 from app.websocket.hub import publish
 
+# Werewolf day/discussion move on automatically after this long, so an idle host can't stall the game.
+WEREWOLF_PHASE_SECONDS = 120
+
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 _rng = random.SystemRandom()
 
 # Option allow-lists per game (anything else is dropped).
 ALLOWED_OPTIONS: dict[str, set[str]] = {
-    "crazy_eights": {"draw_two", "skip_queen", "reverse_ace"},
+    "crazy_eights": {"draw_two", "queen_skip", "ace_reverse"},
     "truth_or_dare": {"rounds", "packs", "max_skips"},
 }
 
@@ -231,6 +236,42 @@ async def _finish(db: AsyncSession, game: GameSession) -> None:
                 await rewards.add_friendship_points(db, a, b, 3)
 
 
+def _phase_key(game_id: uuid.UUID) -> str:
+    return f"game:{game_id}:phase"
+
+
+async def phase_deadline(game: GameSession) -> datetime | None:
+    """Deadline for host-driven Werewolf phases (day/discussion). Tracked in the ephemeral store."""
+    if game.game_type != "werewolf" or game.status != "active" or game.state.get("phase") not in ("day", "discussion"):
+        return None
+    store = get_store()
+    marker = f"{game.state['phase']}:{game.state.get('move_no')}"
+    raw = await store.get_value(_phase_key(game.id))
+    if raw and raw.split("|", 1)[0] == marker:
+        started = datetime.fromisoformat(raw.split("|", 1)[1])
+    else:
+        started = utcnow()
+        await store.set_value(_phase_key(game.id), f"{marker}|{started.isoformat()}", ttl_seconds=3600)
+    return started + timedelta(seconds=WEREWOLF_PHASE_SECONDS)
+
+
+async def _auto_advance(db: AsyncSession, game_id: uuid.UUID) -> None:
+    game = await _locked(db, game_id)
+    deadline = await phase_deadline(game)
+    if deadline is None or deadline > utcnow():
+        return
+    engine = engine_for(game)
+    try:
+        game.state = engine.apply(game.state, str(game.state["host"]), {"type": "advance"}, _rng)
+    except IllegalMove:
+        return
+    game.version += 1
+    if engine.is_over(game.state):
+        await _finish(db, game)
+    await db.commit()
+    await _notify_changed(game)
+
+
 async def is_player(db: AsyncSession, user_id: uuid.UUID, game_id: uuid.UUID) -> bool:
     return await db.get(GamePlayer, (game_id, user_id)) is not None
 
@@ -240,6 +281,9 @@ async def view(db: AsyncSession, user: User, game_id: uuid.UUID) -> GameView:
     if game is None:
         raise NotFound("That game doesn't exist anymore.", code="game_not_found")
     await check_game_access(db, user, game)
+    if game.game_type == "werewolf" and game.status == "active":
+        await _auto_advance(db, game.id)
+        await db.refresh(game)
     engine = engine_for(game)
     players = await _players(db, game.id)
     people = await summaries(db, [p.user_id for p in players])
@@ -260,6 +304,7 @@ async def view(db: AsyncSession, user: User, game_id: uuid.UUID) -> GameView:
         legal_actions=engine.legal_actions(game.state, viewer) if started and viewer and game.status == "active" else [],
         results=engine.results(game.state) if game.status == "finished" and game.state else None,
         settings=game.settings or {},
+        phase_deadline=await phase_deadline(game),
         version=game.version,
         server_time=utcnow(),
         created_at=game.created_at,

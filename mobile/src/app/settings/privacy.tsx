@@ -17,7 +17,7 @@ const CHOICES: Record<ChoiceKey, { title: string; options: { value: string; labe
     title: 'Who can see my full profile',
     options: [
       { value: 'everyone', label: 'Everyone on Veyvo', detail: 'Bio, interests and kudos are visible to others.' },
-      { value: 'friends', label: 'Friends only', detail: 'Others only see your avatar, name and username.' },
+      { value: 'friends', label: 'Friends only', detail: 'Others only see your profile picture, name and username.' },
     ],
   },
   who_can_friend_request: {

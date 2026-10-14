@@ -24,6 +24,7 @@ import {
 import { qk, useBlock, useGiveKudos, useProfile, useRemoveFriend, useRespondRequest, useSendFriendRequest, useStartConversation } from '@/api/hooks';
 import type { PublicProfile } from '@/api/types';
 import { KUDOS_EMOJI, useKudosLabels } from '@/api/social-extra';
+import { CallButton } from '@/components/CallButton';
 import { PhotoGallery } from '@/components/photos/PhotoGallery';
 import { UserPhoto } from '@/components/UserPhoto';
 import { openReport } from '@/components/safety/ReportSheet';
@@ -309,8 +310,9 @@ function Actions({ p, onKudos }: { p: PublicProfile; onKudos: () => void }) {
             {p.can_message ? (
               <Button title="Message" icon={MessageCircle} onPress={message} loading={start.isPending} style={{ flex: 1 }} />
             ) : null}
-            <Button title="Give kudos" icon={Award} variant="secondary" onPress={onKudos} style={{ flex: 1 }} />
+            {p.can_message ? <CallButton userId={p.id} name={p.display_name} /> : null}
           </View>
+          <Button title="Give kudos" icon={Award} variant="ghost" onPress={onKudos} />
           {!p.can_message ? (
             <Text variant="caption" tone="muted" center>
               Messaging is turned off for one of you, so chat isn't available.

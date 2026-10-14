@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { BookOpen, Globe, Lock, MessageSquareText, Mic, Tent, Users } from 'lucide-react-native';
+import { BookOpen, Globe, Lock, MessageSquareText, Mic, Tent, Users, Video } from 'lucide-react-native';
 
 import { useConfig, useCreateRoom, useInterests, useMe } from '@/api/hooks';
 import { scheduleOptions, toIsoWithOffset, useHostableCommunities, useOwnedScenes } from '@/api/rooms-extra';
 import type { Room, RoomInput, Scene } from '@/api/types';
 import { RoomCard } from '@/components/cards';
 import { FormSection, OptionCards, Stepper } from '@/components/room/FormBits';
-import { ScenePicker } from '@/components/room/ScenePicker';
 import { TopicPicker } from '@/components/room/TopicPicker';
 import { Button, Chip, Header, Input, ListGroup, ListRow, Screen, Text } from '@/components/ui';
 import { ApiError, errorMessage, fieldErrors } from '@/lib/api';
@@ -19,7 +18,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
 
 type Kind = 'hangout' | 'study';
-type Format = 'voice' | 'text';
+type Format = 'voice' | 'video' | 'text';
 type Visibility = 'public' | 'private';
 
 export default function CreateRoom() {
@@ -96,7 +95,7 @@ export default function CreateRoom() {
       interest_id: interestId,
       community_id: communityId,
       capacity,
-      open_mic: format === 'voice' ? openMic : true,
+      open_mic: format !== 'text' ? openMic : true,
       scheduled_for: chosenSchedule.date ? toIsoWithOffset(chosenSchedule.date) : null,
       ...(kind === 'study' ? { focus_minutes: focus, break_minutes: brk } : {}),
     };
@@ -221,11 +220,12 @@ export default function CreateRoom() {
             value={format}
             onChange={setFormat}
             options={[
+              { value: 'video', title: 'Video', description: 'Face to face. Cameras are optional and off by default; only verified people can turn theirs on.', icon: Video },
               { value: 'voice', title: 'Voice', description: 'Talk out loud. Needs a microphone to speak; anyone can just listen and chat.', icon: Mic },
               { value: 'text', title: 'Text', description: 'Chat only. No microphone needed.', icon: MessageSquareText },
             ]}
           />
-          {format === 'voice' && !voiceAvailable ? (
+          {format !== 'text' && !voiceAvailable ? (
             <Text variant="caption" tone="warning">
               Voice isn't set up on this server yet. Your room will open, and everyone can still chat.
             </Text>
@@ -243,13 +243,10 @@ export default function CreateRoom() {
           />
         </FormSection>
 
-        <FormSection title="Scene" hint="Where everyone hangs out." error={errors.scene || undefined}>
-          <ScenePicker value={scene} onChange={setScene} owned={owned} />
-        </FormSection>
 
         <FormSection title="Room size" error={errors.capacity || undefined}>
           <Stepper label="Capacity" value={capacity} min={2} max={maxCapacity} onChange={setCapacity} suffix="people" />
-          {format === 'voice' ? (
+          {format !== 'text' ? (
             <ListGroup>
               <ListRow
                 icon={Mic}
@@ -293,7 +290,7 @@ export default function CreateRoom() {
           <View style={[styles.summary, { backgroundColor: colors.surfaceAlt }]}>
             <Text variant="caption" tone="muted">
               {visibility === 'private' ? 'Invite-only' : 'Public'} · {kind === 'study' ? `Study room, ${focus}/${brk} min` : 'Hangout'} ·{' '}
-              {format === 'voice' ? (openMic ? 'Voice, open mic' : 'Voice, raise hands') : 'Text'} · Up to {capacity}
+              {format === 'text' ? 'Text' : `${format === 'video' ? 'Video' : 'Voice'}, ${openMic ? 'open mic' : 'raise hands'}`} · Up to {capacity}
             </Text>
           </View>
         </FormSection>

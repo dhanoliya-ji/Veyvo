@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { Award, Ban, Flag, Hand, Mic, MicOff, ShieldCheck, ShieldOff, UserMinus, UserRound, UserX } from 'lucide-react-native';
+import { Award, Ban, Flag, Hand, Mic, MicOff, ShieldCheck, ShieldOff, UserMinus, UserRound, UserX, Video, VideoOff } from 'lucide-react-native';
 
 import { useBlock, useConfig, useGiveKudos, useRoomAction } from '@/api/hooks';
 import type { ModerateAction, Participant } from '@/api/types';
@@ -182,6 +182,11 @@ export function ParticipantSheet({ roomId, participant, meId, iAmHost, canModera
                     <ListRow icon={Mic} title="Allow to talk again" onPress={() => act('unmute', `${p.display_name} can talk again`)} />
                   ) : (
                     <ListRow icon={MicOff} title="Mute" subtitle="They can't talk until you allow it." onPress={() => act('mute', `${p.display_name} is muted`)} />
+                  )}
+                  {p.camera_blocked ? (
+                    <ListRow icon={Video} title="Allow camera again" onPress={() => act('camera_on', `${p.display_name} can use their camera again`)} />
+                  ) : (
+                    <ListRow icon={VideoOff} title="Turn off their camera" subtitle="They can't turn it back on until you allow it." onPress={() => act('camera_off', `${p.display_name}'s camera is off`)} />
                   )}
                   <Divider inset={64} />
                 </>

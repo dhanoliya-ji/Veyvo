@@ -129,7 +129,7 @@ export default function AccountSettings() {
       <Sheet visible={sheet === 'delete'} onClose={() => setSheet(null)} title="Delete your account?" scroll>
         <View style={{ gap: space.md }}>
           <Text tone="muted">This is permanent and happens immediately. We'll erase:</Text>
-          {['Your profile, avatar and interests', 'Messages you sent and your hangout chat', 'Friends, requests and blocks', 'Gems, items, quests and game history'].map((line) => (
+          {['Your profile, photos and interests', 'Messages you sent and your hangout chat', 'Friends, requests and blocks', 'Gems, items, quests and game history'].map((line) => (
             <Text key={line} variant="body">
               •  {line}
             </Text>

@@ -1,20 +1,17 @@
 import { Linking, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ShieldCheck } from 'lucide-react-native';
+import { BadgeCheck, Gamepad2, ShieldCheck, Video } from 'lucide-react-native';
 
-import { SceneStage, type StageSeat } from '@/components/scene/SceneStage';
 import { Button, Screen, Text } from '@/components/ui';
 import { LEGAL_URLS } from '@/lib/config';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
 
-// Illustration only — these characters are artwork, not real users or live activity.
-const HERO: StageSeat[] = [
-  { id: 'a', name: 'Draw', avatar: { skin: '#C68642', hair: 'afro', hairColor: '#1F1A17', outfit: 'hoodie', outfitColor: '#FF8F9A', eyes: 'happy', mouth: 'grin', bg: '#3A2340' } },
-  { id: 'b', name: 'Chat', avatar: { skin: '#FFDFC4', hair: 'bob', hairColor: '#B5651D', outfit: 'sweater', outfitColor: '#43CFA0', accessory: 'glasses', eyes: 'round', mouth: 'smile', bg: '#1F3B3A' } },
-  { id: 'c', name: 'Play', avatar: { skin: '#8D5524', hair: 'braids', hairColor: '#4A3226', outfit: 'tee', outfitColor: '#FFC857', accessory: 'headphones', eyes: 'sparkle', mouth: 'smile', bg: '#3B3020' }, speaking: true, level: 0.6 },
-  { id: 'd', name: 'Study', avatar: { skin: '#F0C8A0', hair: 'short', hairColor: '#7C6CF2', outfit: 'collar', outfitColor: '#5AA9E6', eyes: 'wink', mouth: 'calm', bg: '#20304A' } },
+const FEATURES = [
+  { icon: Video, title: 'Video & voice hangouts', body: 'Drop into live rooms or call your friends face to face.' },
+  { icon: Gamepad2, title: 'Real games together', body: 'Chess, Ludo, cards, Werewolf and more — with people, not bots.' },
+  { icon: BadgeCheck, title: 'Real, verified people', body: 'Photo profiles with selfie verification. Adults 18+ only.' },
 ];
 
 export default function Welcome() {
@@ -30,8 +27,20 @@ export default function Welcome() {
         <Text variant="heading">Veyvo</Text>
       </View>
 
-      <Animated.View entering={FadeInDown.duration(500)} style={{ marginTop: space.xl }} accessible accessibilityLabel="Illustration of friends hanging out around a campfire">
-        <SceneStage scene="campfire" seats={HERO} height={230} />
+      <Animated.View entering={FadeInDown.duration(500)} style={{ marginTop: space.xxl, gap: space.md }}>
+        {FEATURES.map(({ icon: Icon, title, body }) => (
+          <View key={title} style={[styles.feature, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.featureIcon, { backgroundColor: colors.primarySoft }]}>
+              <Icon size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="bodyStrong">{title}</Text>
+              <Text variant="caption" tone="muted">
+                {body}
+              </Text>
+            </View>
+          </View>
+        ))}
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(120).duration(500)} style={{ marginTop: space.xxl, gap: space.sm }}>
@@ -44,7 +53,7 @@ export default function Welcome() {
       <View style={[styles.safety, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <ShieldCheck size={20} color={colors.success} />
         <Text variant="caption" tone="muted" style={{ flex: 1 }}>
-          Adults 18+ only. Cartoon avatars instead of photos, and you decide who can reach you.
+          Adults 18+ only. Cameras are off until you turn them on, and you decide who can reach you.
         </Text>
       </View>
 
@@ -71,5 +80,7 @@ export default function Welcome() {
 const styles = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
   logo: { width: 34, height: 34, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  feature: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth },
+  featureIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   safety: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, marginTop: space.xl },
 });

@@ -9,17 +9,11 @@ import { ApiError, errorMessage } from '@/lib/api';
 export const FREE_SCENES: Scene[] = ['cafe', 'campfire', 'library', 'rooftop'];
 export const ALL_SCENES: Scene[] = ['cafe', 'campfire', 'library', 'rooftop', 'beach', 'space'];
 
-/** Scenes this person can use: the free ones plus any bought in the shop. */
+/** Room backdrops are no longer sold, so every scene is available. */
 export function useOwnedScenes() {
   const shop = useShop();
-  const owned = useMemo(() => {
-    const set = new Set<Scene>(FREE_SCENES);
-    for (const item of shop.data ?? []) {
-      if (item.slot === 'scene' && item.owned) set.add(item.value as Scene);
-    }
-    return set;
-  }, [shop.data]);
-  return { owned, loading: shop.isLoading, shop };
+  const owned = useMemo(() => new Set<Scene>(ALL_SCENES), []);
+  return { owned, loading: false, shop };
 }
 
 /** Communities where you're an active member, so you can host a hangout in them. */

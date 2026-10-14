@@ -11,7 +11,6 @@ import { errorMessage, fieldErrors } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { toast } from '@/stores/toast';
 import { space } from '@/theme/tokens';
-import { ScenePicker } from './ScenePicker';
 
 type Props = { room: RoomDetail; visible: boolean; onClose: () => void };
 
@@ -68,20 +67,6 @@ export function RoomSettingsSheet({ room, visible, onClose }: Props) {
             />
           </ListGroup>
         ) : null}
-        <View style={{ gap: space.sm }}>
-          <Text variant="label" tone="muted">
-            Scene
-          </Text>
-          <ScenePicker
-            value={scene}
-            onChange={setScene}
-            owned={owned}
-            onLockedPress={() => {
-              onClose();
-              router.push('/shop');
-            }}
-          />
-        </View>
         {error ? (
           <Text variant="caption" tone="danger" accessibilityLiveRegion="polite">
             {error}

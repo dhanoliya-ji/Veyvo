@@ -264,7 +264,7 @@ export default function Home() {
             <View style={styles.grid}>
               <QuickTile icon={Tent} title="Join a room" subtitle="Drop into a live hangout" tint={colors.primary} onPress={() => router.push('/hangouts')} />
               <QuickTile icon={Sparkles} title="Icebreaker" subtitle="Meet someone who shares an interest" tint={colors.accent} onPress={() => router.push('/games/icebreaker')} />
-              <QuickTile icon={Gamepad2} title="Quick game" subtitle="Trivia or Doodle & Guess" tint={colors.success} onPress={() => router.push('/games')} />
+              <QuickTile icon={Gamepad2} title="Quick game" subtitle="Chess, Ludo, cards and more" tint={colors.success} onPress={() => router.push('/games')} />
               <QuickTile icon={Search} title="Explore" subtitle="Find people and communities" tint={colors.warning} onPress={() => router.push('/explore')} />
             </View>
           </Animated.View>

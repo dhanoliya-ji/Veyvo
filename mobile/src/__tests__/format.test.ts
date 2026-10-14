@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { countdown, plural, clientId, timeAgo } from '@/lib/format';
-import { shade } from '@/components/avatar/options';
+import { shade } from '@/lib/color';
 
 describe('format helpers', () => {
   it('formats countdowns', () => {

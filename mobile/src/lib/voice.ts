@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, NativeModules, PermissionsAndroid, Platform, TurboModuleRegistry } from 'react-native';
-import type { Participant, Room as LiveKitRoom } from 'livekit-client';
+import type { Participant, RemoteParticipant, RemoteTrackPublication, Room as LiveKitRoom, TrackPublication } from 'livekit-client';
 
 import { roomMediaToken } from '@/api/hooks';
 import { confirm } from '@/components/ui';
@@ -21,6 +21,8 @@ export const VOICE_COPY = {
   failed: "We couldn't connect to voice. Check your connection and try again.",
   disconnected: 'Voice disconnected. You can reconnect anytime.',
   micBlocked: 'Microphone access is off. Enable it in your device settings to talk.',
+  camBlocked: 'Camera access is off. Enable it in your device settings to turn your camera on.',
+  camExplain: 'Veyvo uses your camera so people in this hangout can see you. Your camera is only on while you choose, and you can turn it off anytime.',
   micExplain:
     'Veyvo uses your microphone so people in this hangout can hear you. You are only heard while your mic is on, and you can mute anytime.',
 };
@@ -30,6 +32,9 @@ type AudioSessionApi = { startAudioSession: () => Promise<void>; stopAudioSessio
 type Loaded = { lk: LiveKitClient; AudioSession: AudioSessionApi };
 
 declare const require: (id: string) => any;
+
+// LiveKit protocol TrackSource value for the camera (permissions use protocol enums, not Track.Source strings).
+const PROTOCOL_SOURCE_CAMERA = 1;
 
 let loaded: Loaded | null | undefined;
 let explainedThisSession = false;
@@ -71,6 +76,22 @@ function loadLiveKit(): Loaded | null {
 }
 
 type MicPermission = 'granted' | 'denied' | 'cancelled';
+
+/** Same idea as the mic: explain, then ask the OS. Only when the person turns their camera on. */
+async function ensureCameraPermission(): Promise<MicPermission> {
+  if (Platform.OS === 'android') {
+    const permission = PermissionsAndroid.PERMISSIONS.CAMERA;
+    if (await PermissionsAndroid.check(permission)) return 'granted';
+    const ok = await confirm({ title: 'Turn on your camera?', message: VOICE_COPY.camExplain, confirmLabel: 'Continue', cancelLabel: 'Not now' });
+    if (!ok) return 'cancelled';
+    const result = await PermissionsAndroid.request(permission);
+    return result === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied';
+  }
+  return 'granted';
+}
+
+/** A renderable camera track: `{ participant, publication, source }` as LiveKit's VideoTrack expects. */
+export type CameraRef = { participant: Participant; publication: TrackPublication; source: 'camera' };
 
 /** Explains why we need the mic, then asks the OS. Only called when the person turns their mic on. */
 async function ensureMicPermission(): Promise<MicPermission> {
@@ -123,6 +144,18 @@ export type VoiceControls = {
   toggleMic: () => Promise<void>;
   /** userId -> 0..1 audio level, only for people the SDK reports as speaking right now. */
   speaking: Record<string, number>;
+  /** Camera (video rooms only). */
+  camOn: boolean;
+  camBusy: boolean;
+  camBlocked: boolean;
+  toggleCamera: () => Promise<void>;
+  flipCamera: () => Promise<void>;
+  /** userId -> camera track, only for cameras that are on and that this person chose to see. */
+  videos: Record<string, CameraRef>;
+  /** userIds whose camera is on (whether or not we've chosen to see it). */
+  camerasOn: Set<string>;
+  /** Show or hide someone's video. Hidden videos aren't downloaded at all. */
+  setVideoVisible: (userId: string, visible: boolean) => void;
   error: string | null;
   retry: () => void;
   openSettings: () => void;
@@ -132,7 +165,22 @@ export type VoiceControls = {
  * Connects to a room's voice channel while `enabled`. The mic always starts OFF.
  * `canPublish` mirrors the server's `can_speak`; when it changes we mute or refresh the token.
  */
-export function useVoice(roomId: string, enabled: boolean, canPublish: boolean): VoiceControls {
+export function useVoice(
+  roomId: string,
+  enabled: boolean,
+  canPublish: boolean,
+  opts: { canVideo?: boolean; autoShowVideo?: (userId: string) => boolean } = {},
+): VoiceControls {
+  const canVideo = !!opts.canVideo;
+  const autoShowRef = useRef(opts.autoShowVideo);
+  autoShowRef.current = opts.autoShowVideo;
+  const [camOn, setCamOn] = useState(false);
+  const [camBusy, setCamBusy] = useState(false);
+  const [camBlocked, setCamBlocked] = useState(false);
+  const [videos, setVideos] = useState<Record<string, CameraRef>>({});
+  const [camerasOn, setCamerasOn] = useState<Set<string>>(new Set());
+  const visibleRef = useRef<Set<string>>(new Set());
+  const facingRef = useRef<'user' | 'environment'>('user');
   const [state, setState] = useState<VoiceState>('disconnected');
   const [micOn, setMicOn] = useState(false);
   const [micBusy, setMicBusy] = useState(false);
@@ -141,6 +189,7 @@ export function useVoice(roomId: string, enabled: boolean, canPublish: boolean):
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const roomRef = useRef<LiveKitRoom | null>(null);
+  const syncVideosRef = useRef<() => void>(() => undefined);
   const canPublishRef = useRef(canPublish);
   canPublishRef.current = canPublish;
 
@@ -166,8 +215,34 @@ export function useVoice(roomId: string, enabled: boolean, canPublish: boolean):
     setState('connecting');
     setError(null);
 
+    // Rebuild the camera map. Remote cameras are only subscribed (downloaded) when visible.
+    const syncVideos = () => {
+      if (cancelled) return;
+      const next: Record<string, CameraRef> = {};
+      const on = new Set<string>();
+      const local = room.localParticipant.getTrackPublication(lk.Track.Source.Camera);
+      if (local?.track && !local.isMuted) {
+        next[room.localParticipant.identity] = { participant: room.localParticipant, publication: local, source: 'camera' };
+        on.add(room.localParticipant.identity);
+      }
+      room.remoteParticipants.forEach((p: RemoteParticipant) => {
+        const pub = p.getTrackPublication(lk.Track.Source.Camera) as RemoteTrackPublication | undefined;
+        if (!pub || pub.isMuted) return;
+        on.add(p.identity);
+        const want = visibleRef.current.has(p.identity) || !!autoShowRef.current?.(p.identity);
+        if (want && !pub.isSubscribed) pub.setSubscribed(true);
+        if (!want && pub.isSubscribed) pub.setSubscribed(false);
+        if (want && pub.track) next[p.identity] = { participant: p, publication: pub, source: 'camera' };
+      });
+      setVideos(next);
+      setCamerasOn(on);
+    };
+
     const syncMic = () => {
-      if (!cancelled) setMicOn(room.localParticipant.isMicrophoneEnabled);
+      if (cancelled) return;
+      setMicOn(room.localParticipant.isMicrophoneEnabled);
+      setCamOn(room.localParticipant.isCameraEnabled);
+      syncVideos();
     };
 
     room
@@ -202,9 +277,23 @@ export function useVoice(roomId: string, enabled: boolean, canPublish: boolean):
       })
       .on(lk.RoomEvent.LocalTrackPublished, syncMic)
       .on(lk.RoomEvent.LocalTrackUnpublished, syncMic)
+      .on(lk.RoomEvent.TrackPublished, syncVideos)
+      .on(lk.RoomEvent.TrackUnpublished, syncVideos)
+      .on(lk.RoomEvent.TrackSubscribed, syncVideos)
+      .on(lk.RoomEvent.TrackUnsubscribed, syncVideos)
+      .on(lk.RoomEvent.TrackMuted, syncVideos)
+      .on(lk.RoomEvent.TrackUnmuted, syncVideos)
+      .on(lk.RoomEvent.ParticipantConnected, syncVideos)
+      .on(lk.RoomEvent.ParticipantDisconnected, syncVideos)
       .on(lk.RoomEvent.ParticipantPermissionsChanged, (_prev, participant) => {
         if (cancelled || participant.identity !== room.localParticipant.identity) return;
         if (!participant.permissions?.canPublish) setMicOn(false);
+        // Host turned our camera off (or we lost camera rights on the server).
+        const sources = (participant.permissions?.canPublishSources ?? []) as number[];
+        if (sources.length && !sources.includes(PROTOCOL_SOURCE_CAMERA) && room.localParticipant.isCameraEnabled) {
+          room.localParticipant.setCameraEnabled(false).catch(() => undefined);
+          setCamOn(false);
+        }
       })
       .on(lk.RoomEvent.MediaDevicesError, (e: Error) => {
         if (cancelled) return;
@@ -225,6 +314,7 @@ export function useVoice(roomId: string, enabled: boolean, canPublish: boolean):
         await withTimeout(room.connect(token.url, token.token, { autoSubscribe: true }), 15_000);
         if (cancelled) return;
         setState('connected');
+        syncVideos();
         setError(null);
       } catch (e) {
         if (cancelled) return;
@@ -242,9 +332,14 @@ export function useVoice(roomId: string, enabled: boolean, canPublish: boolean):
       }
     })();
 
+    syncVideosRef.current = syncVideos;
     return () => {
       cancelled = true;
       roomRef.current = null;
+      syncVideosRef.current = () => undefined;
+      setVideos({});
+      setCamerasOn(new Set());
+      setCamOn(false);
       room.removeAllListeners();
       room.disconnect().catch(() => undefined);
       if (audioStarted) AudioSession.stopAudioSession().catch(() => undefined);
@@ -305,6 +400,68 @@ export function useVoice(roomId: string, enabled: boolean, canPublish: boolean):
     }
   }, [state, micOn, micBusy]);
 
+  // Lost camera rights (e.g. host turned it off): make sure it's off.
+  useEffect(() => {
+    const room = roomRef.current;
+    if (!room || canVideo || !room.localParticipant.isCameraEnabled) return;
+    room.localParticipant.setCameraEnabled(false).catch(() => undefined);
+    setCamOn(false);
+  }, [canVideo]);
+
+  const toggleCamera = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room || state !== 'connected' || camBusy) return;
+    if (camOn) {
+      setCamBusy(true);
+      try {
+        await room.localParticipant.setCameraEnabled(false);
+      } catch {
+        /* off either way */
+      } finally {
+        setCamOn(false);
+        setCamBusy(false);
+        syncVideosRef.current();
+      }
+      return;
+    }
+    if (!canVideo) return;
+    const permission = await ensureCameraPermission();
+    if (permission === 'cancelled') return;
+    if (permission === 'denied') {
+      setCamBlocked(true);
+      return;
+    }
+    setCamBusy(true);
+    try {
+      await room.localParticipant.setCameraEnabled(true, { facingMode: facingRef.current, resolution: { width: 640, height: 480, frameRate: 24 } });
+      setCamOn(room.localParticipant.isCameraEnabled);
+      setCamBlocked(false);
+    } catch (e) {
+      setCamOn(false);
+      if (isPermissionError(e)) setCamBlocked(true);
+      else setError("Couldn't turn on your camera. Please try again.");
+    } finally {
+      setCamBusy(false);
+      syncVideosRef.current();
+    }
+  }, [state, camOn, camBusy, canVideo]);
+
+  const flipCamera = useCallback(async () => {
+    const room = roomRef.current;
+    const mods = loadLiveKit();
+    if (!room || !mods || !camOn) return;
+    const pub = room.localParticipant.getTrackPublication(mods.lk.Track.Source.Camera);
+    const track = pub?.track as { restartTrack?: (o: object) => Promise<void> } | undefined;
+    facingRef.current = facingRef.current === 'user' ? 'environment' : 'user';
+    await track?.restartTrack?.({ facingMode: facingRef.current }).catch(() => undefined);
+  }, [camOn]);
+
+  const setVideoVisible = useCallback((userId: string, visible: boolean) => {
+    if (visible) visibleRef.current.add(userId);
+    else visibleRef.current.delete(userId);
+    syncVideosRef.current();
+  }, []);
+
   const retry = useCallback(() => {
     setMicBlocked(false);
     setAttempt((a) => a + 1);
@@ -314,5 +471,5 @@ export function useVoice(roomId: string, enabled: boolean, canPublish: boolean):
     Linking.openSettings().catch(() => undefined);
   }, []);
 
-  return { state, micOn, micBusy, micBlocked, toggleMic, speaking, error, retry, openSettings };
+  return { state, micOn, micBusy, micBlocked, toggleMic, speaking, camOn, camBusy, camBlocked, toggleCamera, flipCamera, videos, camerasOn, setVideoVisible, error, retry, openSettings };
 }

@@ -29,6 +29,8 @@ class GameView(ApiModel):
     legal_actions: list[dict]
     results: list[dict] | None
     settings: dict
+    # When the current timed phase ends (Werewolf day/discussion); clients show a countdown.
+    phase_deadline: datetime | None = None
     version: int
     server_time: datetime
     created_at: datetime

@@ -50,7 +50,7 @@ function MomentItem({ moment, width }: { moment: Moment; width: number }) {
 
   return (
     <View style={{ gap: space.md, alignItems: 'center' }}>
-      <MomentCard ref={cardRef} moment={moment} avatar={me.data?.avatar} name={me.data?.display_name} width={width} />
+      <MomentCard ref={cardRef} moment={moment} user={me.data} name={me.data?.display_name} width={width} />
       <View style={styles.actions}>
         <Button title="Share" icon={Share2} onPress={share} loading={sharing} style={{ flex: 1 }} />
         <IconButton icon={Trash2} label="Delete moment" variant="filled" onPress={remove} disabled={del.isPending} />
@@ -86,7 +86,7 @@ export default function Moments() {
           ListHeaderComponent={
             items.length ? (
               <Text variant="caption" tone="faint" center>
-                Shared cards only show your avatar and your own numbers — never anyone else.
+                Shared cards only show your photo and your own numbers — never anyone else.
               </Text>
             ) : null
           }

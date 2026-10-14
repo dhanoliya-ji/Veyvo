@@ -17,7 +17,7 @@ const TOOLS: { icon: ComponentType<LucideProps>; title: string; body: string }[]
   { icon: Flag, title: 'Report', body: 'Every profile, message, room and community has Report. Reports are confidential.' },
   { icon: MicOff, title: 'Host controls', body: 'Hosts can mute, remove or ban people from their rooms.' },
   { icon: Lock, title: 'Friends-only messages', body: 'Strangers can never message you. You control requests and invites.' },
-  { icon: EyeOff, title: 'No photos, no location', body: 'Cartoon avatars instead of photos. We never ask for your location.' },
+  { icon: EyeOff, title: 'Your camera, your choice', body: 'Cameras start off, strangers’ video stays hidden until you tap, and photo location data is removed. We never ask for your location.' },
 ];
 
 const STATUS: Record<string, { label: string; tone: 'neutral' | 'warning' | 'success' | 'primary' }> = {

@@ -73,6 +73,7 @@ export type Me = {
   privacy: Privacy;
   onboarded: boolean;
   plus_active?: boolean;
+  game_theme?: Record<string, string>;
   photo_url?: string | null;
   verified?: boolean;
   xp: number;
@@ -140,8 +141,8 @@ export type Room = {
   id: UUID;
   title: string;
   description: string;
-  kind: 'hangout' | 'study';
-  format: 'text' | 'voice';
+  kind: 'hangout' | 'study' | 'call';
+  format: 'text' | 'voice' | 'video';
   visibility: 'public' | 'private';
   scene: Scene;
   interest_id: number | null;
@@ -160,9 +161,17 @@ export type Room = {
   timer: TimerState | null;
 };
 
-export type Participant = UserSummary & { role: 'host' | 'moderator' | 'speaker' | 'listener'; hand_raised: boolean; muted_by_host: boolean; is_friend: boolean };
+export type Participant = UserSummary & { role: 'host' | 'moderator' | 'speaker' | 'listener'; hand_raised: boolean; muted_by_host: boolean; camera_blocked?: boolean; is_friend: boolean };
 
-export type RoomDetail = Room & { participants: Participant[]; rules: string[]; can_speak: boolean; can_moderate: boolean; media_available: boolean };
+export type RoomDetail = Room & {
+  participants: Participant[];
+  rules: string[];
+  can_speak: boolean;
+  can_video?: boolean;
+  video_requires_verification?: boolean;
+  can_moderate: boolean;
+  media_available: boolean;
+};
 
 export type RoomMessage = { id: UUID; room_id: UUID; sender: UserSummary; content: string; created_at: string };
 
@@ -170,7 +179,7 @@ export type RoomInput = {
   title: string;
   description?: string;
   kind: 'hangout' | 'study';
-  format: 'text' | 'voice';
+  format: 'text' | 'voice' | 'video';
   visibility: 'public' | 'private';
   scene: Scene;
   interest_id?: number | null;
@@ -182,9 +191,9 @@ export type RoomInput = {
   break_minutes?: number;
 };
 
-export type ModerateAction = 'make_speaker' | 'make_listener' | 'make_moderator' | 'mute' | 'unmute' | 'remove' | 'ban' | 'lower_hand';
+export type ModerateAction = 'make_speaker' | 'make_listener' | 'make_moderator' | 'mute' | 'unmute' | 'remove' | 'ban' | 'lower_hand' | 'camera_off' | 'camera_on';
 
-export type MediaToken = { url: string; token: string; can_publish: boolean; expires_in: number };
+export type MediaToken = { url: string; token: string; can_publish: boolean; can_publish_video?: boolean; expires_in: number };
 
 export type Community = {
   id: UUID;
@@ -203,43 +212,28 @@ export type Community = {
 export type CommunityPost = { id: UUID; community_id: UUID; author: UserSummary; content: string; created_at: string; author_rank?: string };
 export type CommunityMember = UserSummary & { role: string; status: string; rank?: string; points?: number };
 
-export type GamePlayer = UserSummary & { score: number; active: boolean; answered: boolean };
-
-export type RoundView = {
-  index: number;
-  total: number;
-  phase: 'countdown' | 'question' | 'reveal' | 'drawing' | 'round_end';
-  phase_ends_at: string | null;
-  question: string | null;
-  options: string[] | null;
-  category: string | null;
-  my_answer: number | null;
-  correct_index: number | null;
-  answer_counts: number[] | null;
-  drawer_id: UUID | null;
-  word: string | null;
-  word_hint: string | null;
-  guessed_user_ids: UUID[];
-  i_guessed: boolean;
-  answered_count: number;
-};
+export type GamePlayer = UserSummary & { active: boolean; seat: number };
 
 export type GameView = {
   id: UUID;
   code: string;
-  game_type: 'trivia' | 'doodle';
+  game_type: 'chess' | 'ludo' | 'crazy_eights' | 'four_in_a_row' | 'truth_or_dare' | 'werewolf';
   status: 'lobby' | 'active' | 'finished' | 'cancelled';
   host_id: UUID | null;
   room_id: UUID | null;
   players: GamePlayer[];
-  round: RoundView | null;
-  settings: Record<string, number>;
+  min_players: number;
+  max_players: number;
+  /** This viewer's personalised view of the game (shape depends on game_type); null in the lobby. */
+  board: Record<string, unknown> | null;
+  /** Actions the server will accept from this viewer right now. */
+  legal_actions: { type: string; [key: string]: unknown }[];
+  results: { player_id: string; rank: number; score: number; role?: string; survived?: boolean }[] | null;
+  settings: Record<string, unknown>;
   version: number;
   server_time: string;
   created_at: string;
 };
-
-export type GuessResult = { correct: boolean; close: boolean; points: number };
 
 export type Notification = {
   id: UUID;
@@ -255,7 +249,7 @@ export type Notification = {
 
 export type Quest = { key: string; title: string; target: number; progress: number; gems: number; xp: number; completed: boolean; claimed: boolean };
 export type Reward = { gems: number; xp: number; new_balance: number; level: number; leveled_up: boolean };
-export type ShopItem = { key: string; slot: 'hair' | 'outfit' | 'accessory' | 'scene'; value: string; name: string; price: number; owned: boolean; event_only?: boolean };
+export type ShopItem = { key: string; slot: 'chess_board' | 'card_back' | 'ludo_board'; value: string; name: string; price: number; owned: boolean; event_only?: boolean };
 
 export type DailyQuestion = {
   day: string;

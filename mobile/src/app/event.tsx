@@ -2,9 +2,8 @@ import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { CalendarHeart, Gem, Sparkles } from 'lucide-react-native';
 
-import { useMe } from '@/api/hooks';
 import { timeLeft, useClaimEvent, useCurrentEvent } from '@/api/moments-extra';
-import { Avatar } from '@/components/avatar/Avatar';
+import { ThemePreview } from '@/components/shop/ThemePreview';
 import { Button, Card, EmptyState, ErrorState, Header, ProgressBar, Screen, Skeleton, Text } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
@@ -12,7 +11,6 @@ import { toast } from '@/stores/toast';
 import { radius, space } from '@/theme/tokens';
 
 export default function EventScreen() {
-  const me = useMe();
   const event = useCurrentEvent();
   const claim = useClaimEvent();
   const e = event.data;
@@ -22,7 +20,7 @@ export default function EventScreen() {
     try {
       const r = await claim.mutateAsync(e.key);
       haptic.success();
-      toast.success(r.already_claimed ? 'Already claimed' : `+${r.gems} gems${r.item_key && e.item ? ` and the ${e.item.name}` : ''}`, r.item_key ? 'Wear it from Profile → Avatar.' : undefined);
+      toast.success(r.already_claimed ? 'Already claimed' : `+${r.gems} gems${r.item_key && e.item ? ` and the ${e.item.name}` : ''}`, r.item_key ? 'Use it from the Shop.' : undefined);
     } catch (err) {
       toast.error("Couldn't claim", errorMessage(err));
     }
@@ -68,7 +66,7 @@ export default function EventScreen() {
             </View>
             {e.item ? (
               <View style={styles.itemRow}>
-                <Avatar config={{ ...(me.data?.avatar ?? {}), [e.item.slot]: e.item.value }} size={72} />
+                <ThemePreview slot={e.item.slot as 'chess_board' | 'card_back' | 'ludo_board'} value={e.item.value} size={72} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text variant="bodyStrong">{e.item.name}</Text>
                   <Text variant="caption" tone="muted">

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Share, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
-import { Crown, Play, Share2, UserPlus } from 'lucide-react-native';
+import { Crown, LogOut, Play, Share2, UserPlus } from 'lucide-react-native';
 
 import { GAME_META, isApiError } from '@/api/games-extra';
 import { useGameActions } from '@/api/hooks';
@@ -11,17 +11,19 @@ import { errorMessage } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { toast } from '@/stores/toast';
 import { useTheme } from '@/theme/ThemeProvider';
-import { radius, space } from '@/theme/tokens';
+import { space } from '@/theme/tokens';
 import type { GameCtx } from './GameParts';
+import { GamePreview } from './GamePreview';
 
-const MAX_PLAYERS = 12;
+export async function shareGameCode(name: string, code: string) {
+  try {
+    await Share.share({ message: `Join my ${name} game on Veyvo! Open Games → "Join with a code" and enter ${code}` });
+  } catch {
+    /* dismissed */
+  }
+}
 
-const RULES = {
-  trivia: ['Everyone gets the same question.', 'Faster correct answers earn more points.', 'Answers are revealed after the timer ends.'],
-  doodle: ['Take turns drawing a secret word.', 'Guess what the artist is drawing — quicker guesses score more.', 'The artist scores when people guess right.'],
-};
-
-export function GameLobby({ ctx, onJoin, joining }: { ctx: GameCtx; onJoin: () => void; joining: boolean }) {
+export function GameLobby({ ctx, onJoin, joining, onLeave }: { ctx: GameCtx; onJoin: () => void; joining: boolean; onLeave: () => void }) {
   const { colors, reduceMotion } = useTheme();
   const { game, meId, isPlayer } = ctx;
   const actions = useGameActions(game.id);
@@ -30,17 +32,11 @@ export function GameLobby({ ctx, onJoin, joining }: { ctx: GameCtx; onJoin: () =
   const isHost = game.host_id === meId;
   const host = game.players.find((p) => p.id === game.host_id);
   const meta = GAME_META[game.game_type];
-  const needsMore = game.game_type === 'doodle' && active.length < 2;
-
-  const share = async () => {
-    try {
-      await Share.share({ message: `Join my ${meta.name} game on Veyvo! Open Games → "Join with a code" and enter ${game.code}` });
-    } catch {
-      /* dismissed */
-    }
-  };
+  const missing = Math.max(0, game.min_players - active.length);
+  const full = active.length >= game.max_players;
 
   const start = () => {
+    if (actions.start.isPending) return;
     setStartError(null);
     actions.start.mutate(undefined, {
       onSuccess: () => haptic.success(),
@@ -56,32 +52,35 @@ export function GameLobby({ ctx, onJoin, joining }: { ctx: GameCtx; onJoin: () =
   return (
     <View style={{ gap: space.xl }}>
       <Card style={{ alignItems: 'center', gap: space.sm }}>
+        <GamePreview type={game.game_type} height={84} />
         <Text variant="label" tone="muted">
           Game code
         </Text>
-        <Text
-          selectable
-          style={{ fontFamily: 'Inter_800ExtraBold', fontSize: 40, lineHeight: 48, letterSpacing: 8, color: colors.text }}
-          accessibilityLabel={`Game code ${game.code.split('').join(' ')}`}
-        >
+        <Text selectable style={{ fontFamily: 'Inter_800ExtraBold', fontSize: 38, lineHeight: 46, letterSpacing: 8, color: colors.text }} accessibilityLabel={`Game code ${game.code.split('').join(' ')}`}>
           {game.code}
         </Text>
         <Text variant="caption" tone="muted" center>
           Friends can join from Games → "Join with a code".
         </Text>
-        <Button title="Share code" icon={Share2} variant="secondary" size="sm" onPress={share} />
+        <Button title="Share code" icon={Share2} variant="secondary" size="sm" onPress={() => shareGameCode(meta.name, game.code)} />
       </Card>
 
       <View style={{ gap: space.md }}>
         <View style={styles.rowBetween}>
           <Text variant="heading">Players</Text>
           <Text variant="label" tone="muted">
-            {active.length} / {MAX_PLAYERS}
+            {active.length} / {game.max_players}
           </Text>
         </View>
         <View style={styles.grid}>
           {active.map((p) => (
-            <Animated.View key={p.id} entering={reduceMotion ? undefined : ZoomIn.springify().damping(14)} style={styles.player} accessible accessibilityLabel={`${p.display_name}${p.id === game.host_id ? ', host' : ''}${p.id === meId ? ', you' : ''}`}>
+            <Animated.View
+              key={p.id}
+              entering={reduceMotion ? undefined : ZoomIn.springify().damping(14)}
+              style={styles.player}
+              accessible
+              accessibilityLabel={`${p.display_name}${p.id === game.host_id ? ', host' : ''}${p.id === meId ? ', you' : ''}`}
+            >
               <View>
                 <UserPhoto user={p} size={60} />
                 {p.id === game.host_id ? (
@@ -95,8 +94,8 @@ export function GameLobby({ ctx, onJoin, joining }: { ctx: GameCtx; onJoin: () =
               </Text>
             </Animated.View>
           ))}
-          {active.length < 4 ? (
-            <View style={styles.player}>
+          {Array.from({ length: Math.min(Math.max(missing, full ? 0 : 1), 4) }, (_, i) => (
+            <View key={`empty-${i}`} style={styles.player}>
               <View style={[styles.empty, { borderColor: colors.borderStrong }]}>
                 <UserPlus size={22} color={colors.textFaint} />
               </View>
@@ -104,13 +103,13 @@ export function GameLobby({ ctx, onJoin, joining }: { ctx: GameCtx; onJoin: () =
                 Waiting…
               </Text>
             </View>
-          ) : null}
+          ))}
         </View>
       </View>
 
       <Card style={{ gap: space.sm, backgroundColor: colors.surfaceAlt }}>
         <Text variant="bodyStrong">How to play {meta.name}</Text>
-        {RULES[game.game_type].map((r) => (
+        {meta.rules.map((r) => (
           <Text key={r} variant="body" tone="muted">
             • {r}
           </Text>
@@ -118,26 +117,38 @@ export function GameLobby({ ctx, onJoin, joining }: { ctx: GameCtx; onJoin: () =
       </Card>
 
       {!isPlayer ? (
-        <Button title="Join game" icon={UserPlus} size="lg" onPress={onJoin} loading={joining} disabled={active.length >= MAX_PLAYERS} fullWidth />
-      ) : isHost ? (
         <View style={{ gap: space.sm }}>
-          {startError ? (
-            <Animated.View entering={reduceMotion ? undefined : FadeIn}>
-              <Text tone="danger" center accessibilityLiveRegion="polite">
-                {startError}
-              </Text>
-            </Animated.View>
-          ) : needsMore ? (
+          {full ? (
             <Text tone="muted" center>
-              Doodle & Guess needs at least 2 players. Share the code to invite someone.
+              This game is full.
             </Text>
           ) : null}
-          <Button title="Start game" icon={Play} size="lg" onPress={start} loading={actions.start.isPending} fullWidth />
+          <Button title="Join game" icon={UserPlus} size="lg" onPress={onJoin} loading={joining} disabled={full} fullWidth />
         </View>
       ) : (
-        <Text tone="muted" center accessibilityLiveRegion="polite">
-          Waiting for {host?.display_name ?? 'the host'} to start…
-        </Text>
+        <View style={{ gap: space.sm }}>
+          {isHost ? (
+            <>
+              {startError ? (
+                <Animated.View entering={reduceMotion ? undefined : FadeIn}>
+                  <Text tone="danger" center accessibilityLiveRegion="polite">
+                    {startError}
+                  </Text>
+                </Animated.View>
+              ) : missing > 0 ? (
+                <Text tone="muted" center accessibilityLiveRegion="polite">
+                  {meta.name} needs at least {game.min_players} players. Invite {missing} more to start.
+                </Text>
+              ) : null}
+              <Button title="Start game" icon={Play} size="lg" onPress={start} loading={actions.start.isPending} disabled={missing > 0} fullWidth />
+            </>
+          ) : (
+            <Text tone="muted" center accessibilityLiveRegion="polite">
+              {missing > 0 ? `Waiting for ${missing} more player${missing === 1 ? '' : 's'}…` : `Waiting for ${host?.display_name ?? 'the host'} to start…`}
+            </Text>
+          )}
+          <Button title="Leave lobby" icon={LogOut} variant="ghost" onPress={onLeave} fullWidth />
+        </View>
       )}
     </View>
   );
@@ -149,5 +160,4 @@ const styles = StyleSheet.create({
   player: { alignItems: 'center', gap: 4, width: 76 },
   crown: { position: 'absolute', top: -4, right: -4, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   empty: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-  card: { borderRadius: radius.lg },
 });

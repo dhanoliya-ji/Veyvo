@@ -1,7 +1,8 @@
 import { View } from 'react-native';
 import { Accessibility, Smartphone, Vibrate } from 'lucide-react-native';
 
-import { Avatar } from '@/components/avatar/Avatar';
+import { useMe } from '@/api/hooks';
+import { UserPhoto } from '@/components/UserPhoto';
 import { Card, Header, ListGroup, ListRow, Screen, SegmentedControl, Text } from '@/components/ui';
 import { usePreferences, type ThemePreference } from '@/stores/preferences';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -9,6 +10,7 @@ import { space } from '@/theme/tokens';
 
 export default function Appearance() {
   const { colors, scheme } = useTheme();
+  const me = useMe();
   const { theme, setTheme, reduceMotion, setReduceMotion, haptics, setHaptics } = usePreferences();
 
   return (
@@ -16,7 +18,7 @@ export default function Appearance() {
       <View style={{ gap: space.xl, marginTop: space.sm }}>
         <Card style={{ gap: space.lg }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-            <Avatar size={44} />
+            <UserPhoto user={me.data} size={44} />
             <View style={{ flex: 1 }}>
               <Text variant="subheading">Preview</Text>
               <Text variant="caption" tone="muted">

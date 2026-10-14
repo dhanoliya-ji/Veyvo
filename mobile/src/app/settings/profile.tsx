@@ -4,11 +4,15 @@ import { router } from 'expo-router';
 import { AtSign } from 'lucide-react-native';
 
 import { useMe, useUpdateProfile } from '@/api/hooks';
-import { Button, Header, Input, Screen, Text } from '@/components/ui';
+import type { Vibe } from '@/api/types';
+import { Button, Chip, Header, Input, Screen, Text } from '@/components/ui';
+import { VIBE_LABELS } from '@/lib/format';
 import { errorMessage, fieldErrors, get } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { toast } from '@/stores/toast';
 import { space } from '@/theme/tokens';
+
+const VIBES: Vibe[] = ['down_to_chat', 'studying', 'listening', 'gaming', 'busy'];
 
 export default function EditProfile() {
   const me = useMe();
@@ -42,6 +46,11 @@ export default function EditProfile() {
     }, 400);
     return () => clearTimeout(t);
   }, [username, me.data]);
+
+  const setVibe = (vibe: Vibe | null) => {
+    if ((me.data?.vibe ?? null) === vibe) return;
+    update.mutate(vibe ? { vibe } : { clear_vibe: true }, { onError: (e) => toast.error("Couldn't update your vibe", errorMessage(e)) });
+  };
 
   const dirty = !!me.data && (displayName !== me.data.display_name || username !== (me.data.username ?? '') || bio !== me.data.bio);
 
@@ -83,6 +92,17 @@ export default function EditProfile() {
           hint="Changing it frees up your old username for others."
         />
         <Input label="Bio" value={bio} onChangeText={setBio} maxLength={300} counter multiline placeholder="What are you into?" />
+        <View style={{ gap: space.sm }}>
+          <Text variant="label" tone="muted">
+            Vibe — let people know what you're up for
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }} accessibilityRole="radiogroup">
+            <Chip label="No vibe" selected={!me.data?.vibe} onPress={() => setVibe(null)} />
+            {VIBES.map((v) => (
+              <Chip key={v} label={VIBE_LABELS[v]} selected={me.data?.vibe === v} onPress={() => setVibe(v)} />
+            ))}
+          </View>
+        </View>
         <Text variant="caption" tone="faint">
           Your email ({me.data?.email}) is private and never shown on your profile.
         </Text>
