@@ -1,0 +1,19 @@
+# Files EAS Build should NOT upload. This replaces .gitignore for EAS, so that
+# google-services.json (kept out of git) is still included in cloud builds.
+node_modules/
+.expo/
+dist/
+web-build/
+android/
+ios/
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+.env
+.env.*
+npm-debug.*
+*.tsbuildinfo
