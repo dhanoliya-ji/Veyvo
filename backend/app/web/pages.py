@@ -21,7 +21,7 @@ router = APIRouter(include_in_schema=False)
 
 CONTACT = "privacy@veyvo.app"
 SAFETY_CONTACT = "safety@veyvo.app"
-UPDATED = "14 October 2026"
+UPDATED = "15 October 2026"
 
 _STYLE = """
 :root{--bg:#10111A;--surface:#191B28;--text:#F5F5FB;--muted:#A5A8BA;--accent:#9385FF;--coral:#FF8F9A;--line:#2A2C40}
@@ -64,26 +64,31 @@ async def privacy():
 <ul>
 <li><strong>Account:</strong> your email address and a securely hashed password (Argon2id). We never see or store your password itself.</li>
 <li><strong>Age confirmation:</strong> you enter your date of birth at sign-up so we can confirm you are 18 or older. <strong>We do not store your date of birth</strong> — only the fact and time that you confirmed you're an adult.</li>
-<li><strong>Profile:</strong> your username, display name, optional bio, cartoon avatar settings, interests and an optional "vibe" status. Veyvo has no photo uploads; your avatar is a drawing made from preset parts.</li>
+<li><strong>Profile:</strong> your username, display name, optional bio, interests, an optional "vibe" status and up to 6 profile photos you choose to upload. Photos are re-saved on our servers, which <strong>removes hidden location (GPS) and device data</strong>, and are checked for safety before others can see them.</li>
+<li><strong>Selfie verification (optional):</strong> if you ask to be verified, you take one selfie doing a pose. A reviewer (or an automated check) compares it with your profile photos. <strong>The selfie is deleted as soon as it has been reviewed.</strong> We keep only whether you are verified. We don't build or keep a facial template.</li>
 <li><strong>Activity you create:</strong> friend connections, direct messages, hangout chat, community posts, game scores, Daily Question answers, kudos, gems and quest progress.</li>
 <li><strong>Safety records:</strong> reports you file or that are filed about content, and records of moderation actions.</li>
 <li><strong>Device:</strong> a push notification token if you allow notifications, and the platform (Android/iOS) of signed-in devices.</li>
 </ul>
 <h2>What we don't collect</h2>
-<ul><li>No real name, phone number, contacts, photos, location or date of birth.</li>
+<ul><li>No real name, phone number, contacts, location or date of birth. Photo location data is stripped on upload.</li>
 <li>No IP address storage. IPs are used briefly, in hashed form, only to limit abuse (rate limiting) and then expire.</li>
 <li>No advertising identifiers, no selling or renting your data, and no data brokers.</li>
-<li>Voice in hangouts is relayed live and <strong>is not recorded</strong> by Veyvo.</li></ul>
+<li>Voice and video in hangouts and calls are relayed live and <strong>are not recorded</strong> by Veyvo. Your camera and microphone are only used while you turn them on.</li></ul>
 <h2>How we use it</h2>
 <p>To run the service (accounts, messaging, hangouts, games), keep people safe (reports, moderation, blocking), and send notifications you've enabled. Notification previews of messages are <strong>off by default</strong>.</p>
 <h2>Who can see what</h2>
 <ul><li>Messages can only be exchanged between friends, and only if both people allow it.</li>
 <li>Online status is shown only to friends, and you can turn it off. Turning it off also turns off read receipts.</li>
 <li>You can make your profile friends-only, hide your interests, hide from search, and control who can send friend requests or invites.</li>
+<li>Your profile picture is visible to other members. You can limit your other photos to friends only.</li>
+<li>Video from people who aren't your friends stays hidden until you choose to show it.</li>
 <li>Your email is never shown to other users.</li></ul>
 <h2>How long we keep data</h2>
 <ul><li>Hangout chat: 30 days, then deleted automatically.</li><li>Notifications: 90 days.</li>
 <li>Report evidence: cleared 180 days after a report is resolved.</li>
+<li>Verification selfies: deleted immediately after review.</li>
+<li>Profile photos: until you delete them or your account (deleted photos are removed from storage).</li>
 <li>Direct messages: until you or the other person deletes them, or an account is deleted.</li>
 <li>Everything else: until you delete your account.</li></ul>
 <h2>Your rights and controls</h2>
@@ -91,7 +96,7 @@ async def privacy():
 <li><strong>Delete your account:</strong> in the app (Settings → Account → Delete account) or on the web at <a href="/account/delete">/account/delete</a>. Deletion is permanent and immediate: your profile, messages you sent, chat, posts, friendships and all other personal data are erased. Reports you filed are kept without your identity so open safety reviews can finish.</li>
 <li>You can also contact us at <a href="mailto:{CONTACT}">{CONTACT}</a> to access, correct or delete your data.</li></ul>
 <h2>Security</h2><p>Data is encrypted in transit (HTTPS/TLS). Passwords are hashed with Argon2id, sign-in tokens are short-lived and rotate, and staff access to moderation tools is role-restricted and audited.</p>
-<h2>Service providers</h2><p>We use infrastructure providers to host the service, send email codes and deliver push notifications, and a real-time media provider to relay live voice. They process data only on our instructions.</p>
+<h2>Service providers</h2><p>We use infrastructure providers to host the service, send email codes and deliver push notifications, a real-time media provider to relay live voice and video, private cloud storage for photos, and (where enabled) an image-safety service that checks uploaded photos. Payments are processed by Google Play and ads by Google AdMob, under their own privacy policies. They process data only on our instructions.</p>
 <h2>Adults only</h2><p>Veyvo is for people aged 18 and over. If we learn an account belongs to someone younger, we delete it.</p>
 <h2>Changes</h2><p>We'll notify you in the app before material changes take effect.</p>
 <p class="muted">Contact: <a href="mailto:{CONTACT}">{CONTACT}</a></p>""",
@@ -144,7 +149,8 @@ async def child_safety():
 <p>Veyvo has zero tolerance for child sexual abuse and exploitation (CSAE), including child sexual abuse material (CSAM), grooming, and any sexualisation of minors.</p>
 <h2>Our standards</h2>
 <ul><li><strong>Adults only:</strong> accounts require confirming an age of 18+ at sign-up. Accounts found to belong to minors are removed.</li>
-<li><strong>No image uploads:</strong> Veyvo has no photo or video sharing. Profiles use preset cartoon avatars, and live camera video is not offered.</li>
+<li><strong>Photo safety:</strong> every profile photo is checked before anyone else can see it, and location data is removed. There is no sharing of photos or videos in chat.</li>
+<li><strong>Camera safeguards:</strong> cameras are off by default. Only selfie-verified members can use their camera with people who aren't their friends, video from strangers stays hidden until a viewer chooses to show it, hosts can turn off anyone's camera, and every video tile has Report and Block.</li>
 <li><strong>Limited contact:</strong> direct messages are only possible between mutual friends who both allow messages.</li>
 <li><strong>In-app reporting:</strong> every profile, message, room and community has a Report option, including a dedicated "User may be under 18" reason.</li>
 <li><strong>Moderation:</strong> reports are reviewed by trained moderators. Violations lead to immediate permanent bans.</li>
@@ -162,7 +168,7 @@ def _delete_form(message: str = "", ok: bool = False) -> HTMLResponse:
         f"""
 <h1>Delete your Veyvo account</h1>
 <p>You can also do this in the app: <strong>Profile → Settings → Account → Delete account</strong>.</p>
-<p class="muted">Deleting is permanent and happens immediately. Your profile, avatar, messages you sent, hangout chat, posts, friendships, gems and items are erased. Reports you filed are kept without your identity so open safety reviews can finish.</p>
+<p class="muted">Deleting is permanent and happens immediately. Your profile, photos, messages you sent, hangout chat, posts, friendships, gems and items are erased. Reports you filed are kept without your identity so open safety reviews can finish.</p>
 {note}
 <form class="card" method="post" action="/account/delete" autocomplete="off">
 <label for="email">Email</label><input id="email" name="email" type="email" required maxlength="320">

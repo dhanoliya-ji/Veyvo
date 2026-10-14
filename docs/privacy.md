@@ -9,7 +9,10 @@ Veyvo's rule: **collect the minimum, default to private, enforce on the server.*
 | Email | Sign-in, verification, recovery | `users.email` | Until account deletion |
 | Password | Sign-in | Argon2id hash only | Until deletion |
 | Birth date | Confirm 18+ at sign-up | **Not stored**. Only `adult_attested_at` is kept | — |
-| Username, display name, bio, avatar parts, interests, vibe | Profile | `profiles`, `user_interests` | Until deletion |
+| Username, display name, bio, interests, vibe | Profile | `profiles`, `user_interests` | Until deletion |
+| Profile photos (re-encoded, EXIF/GPS stripped, moderated) | Profile | `photos` + private bucket, signed URLs | Until the user deletes them or the account |
+| Verification selfie | Prove photos are real | private bucket | **Deleted immediately after review**; only `verified_at` is kept |
+| Game themes, purchases | Features / accounting | `profiles.game_theme`, `store_purchases` | Purchases kept for accounting with the user link removed on deletion |
 | Privacy & notification settings | User control | `privacy_settings` | Until deletion |
 | Friendships, requests, blocks | Social graph and safety | respective tables | Until deletion |
 | Direct messages | Chat | `messages` | Until the sender deletes them or deletes their account |
@@ -22,7 +25,7 @@ Veyvo's rule: **collect the minimum, default to private, enforce on the server.*
 | Presence and online status | Live features | Redis only, with a TTL of about 75 seconds | Ephemeral |
 | IP address | Abuse rate limiting | Redis, as a keyed hash in rate-limit counters only | Minutes (window TTL) |
 
-**Never collected:** real name, phone, contacts, photos or media uploads, camera, precise or approximate location, advertising IDs, voice recordings.
+**Never collected:** real name, phone, contacts, precise or approximate location (photo GPS is stripped), voice or video recordings. Camera and microphone are used only while the person has them turned on.
 
 ## Defaults (most private first)
 
@@ -57,7 +60,8 @@ Deletion is immediate and permanent. The user row is deleted, and `ON DELETE CAS
 - Structured JSON logs redact passwords, tokens and message content. Unhandled errors log the type and path only.
 - Security headers, HSTS in production, CORS restricted to configured origins, and API docs disabled in production.
 - Production refuses to start with a weak JWT secret, SQLite, missing Redis or a non-HTTPS public URL.
-- Android: camera, location, contacts and media permissions are explicitly **blocked** in the manifest. Only the microphone (voice) and notifications are requested, and only when the user turns those features on.
+- Android: location, contacts and broad media-storage permissions are explicitly **blocked** in the manifest. Camera (photos, selfie, video), microphone and notifications are requested only when the user turns those features on. Photos are chosen through the system photo picker, so no storage permission is needed.
+- Video: camera off by default; selfie verification required to use the camera with non-friends; non-friends' video is not even downloaded until the viewer taps to show it; hosts can disable cameras; report/block on every tile.
 
 ## Backups & recovery (operator checklist)
 
