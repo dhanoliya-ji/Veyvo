@@ -40,6 +40,12 @@ class Message(Base):
     # Client-generated id so retries after a network drop never create duplicates.
     client_id: Mapped[str] = mapped_column(String(64))
     content: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(10), default="text", server_default="text")  # text | voice
+    # Voice notes: private storage key + length. Deleted with the message.
+    media_key: Mapped[str | None] = mapped_column(String(200))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    # Reply to a photo or prompt: {"type": "photo"|"prompt", "photo_id"?, "prompt_key"?, "text"?}
+    context: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(TZDateTime(), default=utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(TZDateTime())
 
@@ -109,7 +115,7 @@ class Room(Base):
     community_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("communities.id", ondelete="SET NULL"), index=True)
     title: Mapped[str] = mapped_column(String(80))
     description: Mapped[str] = mapped_column(String(500), default="")
-    kind: Mapped[str] = mapped_column(String(20), default="hangout")  # hangout | study
+    kind: Mapped[str] = mapped_column(String(20), default="hangout")  # hangout | study | call | game | squad
     format: Mapped[str] = mapped_column(String(20), default="voice")  # text | voice
     visibility: Mapped[str] = mapped_column(String(20), default="public")  # public | private
     scene: Mapped[str] = mapped_column(String(20), default="cafe")
@@ -118,6 +124,9 @@ class Room(Base):
     status: Mapped[str] = mapped_column(String(20), default="live")  # scheduled | live | ended
     open_mic: Mapped[bool] = mapped_column(default=True)
     timer: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Regulars: when this room ends, the next one is scheduled for the same time next week.
+    repeat_weekly: Mapped[bool] = mapped_column(default=False, server_default="0")
+    squad_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("squads.id", ondelete="SET NULL"), index=True)
     scheduled_for: Mapped[datetime | None] = mapped_column(TZDateTime(), index=True)
     started_at: Mapped[datetime | None] = mapped_column(TZDateTime())
     ended_at: Mapped[datetime | None] = mapped_column(TZDateTime())
@@ -158,9 +167,11 @@ class GameSession(Base):
     __tablename__ = "game_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    game_type: Mapped[str] = mapped_column(String(20))  # trivia | doodle
+    game_type: Mapped[str] = mapped_column(String(20))
     host_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     room_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("rooms.id", ondelete="SET NULL"), index=True)
+    # Private voice/video call for the players of this game (a Room with kind="game").
+    call_room_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("rooms.id", ondelete="SET NULL"))
     code: Mapped[str] = mapped_column(String(8), unique=True)
     status: Mapped[str] = mapped_column(String(20), default="lobby")  # lobby | active | finished | cancelled
     # Server-only state (question order, secret words). Never sent to clients as-is.

@@ -5,7 +5,24 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 
-from app.api.routes import auth, communities, conversations, engagement, games, me, moments, monetization, photos, rooms, safety, users
+from app.api.routes import (
+    auth,
+    communities,
+    connect,
+    conversations,
+    discover,
+    engagement,
+    games,
+    letters,
+    me,
+    moments,
+    monetization,
+    photos,
+    rooms,
+    safety,
+    squads,
+    users,
+)
 from app.content.catalog import INTERESTS
 from app.core import database
 from app.core.config import get_settings
@@ -57,12 +74,17 @@ async def lifespan(app: FastAPI):
     from app.services import livemod
 
     livemod_task = asyncio.create_task(livemod.run_forever()) if settings.app_env != "test" else None
+    from app.services import scheduler
+
+    scheduler_task = asyncio.create_task(scheduler.run_forever()) if settings.app_env != "test" else None
     logger.info("startup", extra={"env": settings.app_env, "media": settings.media_configured, "redis": bool(settings.redis_url)})
     yield
     if task:
         task.cancel()
     if livemod_task:
         livemod_task.cancel()
+    if scheduler_task:
+        scheduler_task.cancel()
     hub.stop()
     await get_store().close()
 
@@ -111,7 +133,10 @@ def create_app() -> FastAPI:
             db_ok = False
         return {"status": "ok" if db_ok else "degraded", "database": db_ok, "media": settings.media_configured}
 
-    for module in (auth, me, users, conversations, rooms, communities, games, engagement, moments, monetization, photos, safety):
+    for module in (
+        auth, me, users, conversations, rooms, communities, games, engagement, moments, monetization, photos, safety,
+        discover, connect, squads, letters,
+    ):  # fmt: skip
         app.include_router(module.router, prefix=API_PREFIX)
     app.include_router(ws_routes.router)
     app.include_router(photos.media_router)

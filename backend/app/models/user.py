@@ -83,6 +83,10 @@ class Profile(TimestampMixin, Base):
     verified_at: Mapped[datetime | None] = mapped_column(TZDateTime())
     # Veyvo Plus entitlement, set only from a server-verified Google Play subscription.
     plus_until: Mapped[datetime | None] = mapped_column(TZDateTime())
+    # Up to 3 profile prompts: [{"key": "...", "answer": "..."}]
+    prompts: Mapped[list] = mapped_column(JSON, default=list, server_default=text("'[]'"))
+    # "Free to talk" until this time (shown to friends only). Null = not set.
+    free_until: Mapped[datetime | None] = mapped_column(TZDateTime())
 
     user: Mapped[User] = relationship(back_populates="profile")
 
@@ -103,6 +107,10 @@ class PrivacySettings(TimestampMixin, Base):
     # Who can see photos beyond the profile picture.
     photo_visibility: Mapped[str] = mapped_column(String(20), default="everyone")  # everyone | friends
     allow_icebreakers: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Friend Swipe: appear in other people's decks at all, and only to verified people.
+    show_in_discover: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    discover_verified_only: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    allow_pen_pals: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     notification_previews: Mapped[bool] = mapped_column(Boolean, default=False)
     notification_prefs: Mapped[dict] = mapped_column(JSON, default=dict)
 

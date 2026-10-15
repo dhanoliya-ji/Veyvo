@@ -107,6 +107,12 @@
           "photosPermission": "Veyvo lets you choose photos for your profile.",
           "cameraPermission": "Veyvo uses your camera so you can take a profile photo."
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Veyvo uses your microphone for voice chat, calls and voice notes. It's only on when you use those."
+        }
       ]
     ],
     "experiments": {

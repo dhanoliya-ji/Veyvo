@@ -1,3 +1,4 @@
+from app.models.connect import Letter, PenPal, PenPalWaiting, Squad, SquadMember, SquadMessage, SwipeDecision
 from app.models.social import (
     AdRewardSession,
     Community,
@@ -43,6 +44,13 @@ from app.models.user import (
 )
 
 __all__ = [
+    "Letter",
+    "PenPal",
+    "PenPalWaiting",
+    "Squad",
+    "SquadMember",
+    "SquadMessage",
+    "SwipeDecision",
     "AdRewardSession",
     "StorePurchase",
     "AuthSession",
