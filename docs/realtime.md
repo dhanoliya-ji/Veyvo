@@ -6,16 +6,16 @@ Endpoint: `wss://<host>/api/v1/ws`
 
 | Message | Notes |
 |---|---|
-| `{"type":"auth","token":"<access token>"}` | Must be the first message, within 10 s. Invalid → close code `4401`. |
+| `{"type":"auth","token":"<access token>"}` | Must be the first message, within 10 s, from an onboarded account. Invalid → close code `4401`. Reply: `{"type":"ready","user_id":"..."}`. |
 | `{"type":"ping"}` | Every ~25 s. Refreshes online presence and room presence for subscribed rooms you've joined. Reply: `pong`. |
-| `{"type":"subscribe","channel":"room:<id>"}` | Requires the same access as `GET /rooms/{id}` (private, banned, blocked host and private-community checks). |
-| `{"type":"subscribe","channel":"game:<id>"}` | Requires game access (and room access for room games). |
+| `{"type":"subscribe","channel":"room:<id>"}` | Requires the same access as `GET /rooms/{id}` (private, banned, blocked host and private-community checks). Reply: `subscribed`. |
+| `{"type":"subscribe","channel":"game:<id>"}` | Requires game access (and room access for room games). Reply: `subscribed`. |
 | `{"type":"unsubscribe","channel":"..."}` | |
 | `{"type":"typing","conversation_id":"...","is_typing":true}` | Only members of the conversation, never across blocks. |
-| `{"type":"draw","session_id":"...","stroke":{"points":[[x,y],...],"color":"#RRGGBB","width":6}}` | Doodle artist only, during the drawing phase. At most 400 points, coordinates 0..1, width 1..40. |
-| `{"type":"draw_clear","session_id":"..."}` | Doodle artist only. |
 
-Client events are rate limited (120 per 30 s). Messages over 16 KB are rejected. Errors come back as `{"type":"error","code":"...","for":"<type>"}`.
+Game moves don't go over the socket. They use REST (`POST /games/{id}/action` with the current `version`); the socket only tells clients that state changed.
+
+Client events (except `ping`) are rate limited (120 per 30 s). Messages over 16 KB are rejected. Suspended or banned accounts are closed with `4403`. Errors come back as `{"type":"error","code":"...","for":"<type>"}`.
 
 ## Server → client envelope
 
@@ -39,21 +39,20 @@ Clients drop events whose `id` they've already seen (duplicates can occur after 
 | `friendship.removed` | user | `{user_id}` | The other person |
 | `block.updated` | user | `{user_id, blocked}` | The blocker only |
 | `notification.created` | user | notification summary (never message text) | Recipient |
+| `call.incoming` | user | `{room_id, from}` | The friend being called |
+| `call.declined` | user | `{room_id, user_id}` | The caller |
 | `icebreaker.matched` / `icebreaker.updated` | user | `{session_id}` | Both participants |
 | `room.removed` | user | `{room_id, banned}` | The removed person |
 | `account.status` | user | `{status, until?}` | The affected account |
 | `room.participant_joined` / `room.participant_left` | room | `{room_id, user / user_id, role?}` | Room subscribers |
-| `room.participant_updated` | room | `{room_id, user_id, action, role, muted_by_host, hand_raised, can_speak?}` | Room subscribers |
+| `room.participant_updated` | room | `{room_id, user_id, action, role, muted_by_host, hand_raised, can_speak?, camera_blocked?, automatic?}`. `action` includes `camera_off` / `camera_on`; `automatic: true` means the live-video check turned the camera off. | Room subscribers |
 | `room.updated` | room | changed fields | Room subscribers |
 | `room.message` | room | `RoomMessageOut` | Room subscribers |
 | `room.reaction` | room | `{room_id, user_id, reaction}` | Room subscribers |
 | `room.timer` | room | `{room_id, timer}` | Room subscribers |
 | `room.game_created` | room | `{room_id, session_id, game_type, code}` | Room subscribers |
 | `room.ended` | room | `{room_id, reason}` | Room subscribers |
-| `game.state_updated` | game | `{session_id, version, status}`. Clients refetch their **personalised** view (the doodle word is never broadcast). | Game subscribers |
-| `game.guess` | game | `{session_id, user_id, text}` (wrong, non-revealing guesses only) | Game subscribers |
-| `game.correct_guess` | game | `{session_id, user_id}` | Game subscribers |
-| `game.stroke` / `game.clear` | game | stroke data | Game subscribers except the artist |
+| `game.state_updated` | game | `{session_id, version, status}`. Clients refetch their **personalised** view, so hidden cards and Werewolf roles are never broadcast. | Game subscribers |
 
 ## Scaling
 

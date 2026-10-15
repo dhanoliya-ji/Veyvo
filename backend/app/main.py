@@ -88,6 +88,10 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
+        if settings.storage_backend == "local":
+            from app.core.storage import request_base_url
+
+            request_base_url.set(str(request.base_url).rstrip("/"))
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "no-referrer")

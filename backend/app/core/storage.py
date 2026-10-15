@@ -9,12 +9,17 @@ Nothing is ever publicly listable, and every URL expires.
 import hashlib
 import hmac
 import time
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Protocol
 
 from app.core.config import get_settings
 
 URL_TTL = 3600
+
+# Local storage is development-only: build media URLs from the host the request came in on, so a phone
+# that reaches the API at http://192.168.x.x:8000 can also load photos (PUBLIC_BASE_URL is often localhost).
+request_base_url: ContextVar[str | None] = ContextVar("request_base_url", default=None)
 
 
 class Storage(Protocol):
@@ -66,7 +71,8 @@ class LocalStorage:
 
     def url(self, key: str) -> str:
         exp = _expiry()
-        return f"{get_settings().public_base_url}/media/{key}?e={exp}&s={sign(key, exp)}"
+        base = request_base_url.get() or get_settings().public_base_url
+        return f"{base}/media/{key}?e={exp}&s={sign(key, exp)}"
 
 
 class S3Storage:

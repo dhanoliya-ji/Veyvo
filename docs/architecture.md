@@ -4,16 +4,19 @@
 ┌──────────────────────────────┐        HTTPS /api/v1/*         ┌─────────────────────────────┐
 │  Expo app (React Native)     │ ─────────────────────────────▶ │  FastAPI (N instances)      │
 │  TanStack Query cache        │        WSS /api/v1/ws          │  routes → services → models │
-│  Zustand (session, prefs)    │ ◀────────────────────────────▶ │  realtime hub               │
-│  LiveKit client (voice)      │                                └──────┬───────────┬──────────┘
-└──────────────┬───────────────┘                                       │           │
-               │ WebRTC (voice only, token from API)                    │           │
-               ▼                                                 ┌─────▼───┐  ┌────▼──────┐
-       ┌───────────────┐                                         │Postgres │  │  Redis    │
-       │ LiveKit SFU   │ ◀── server API (mute/kick/close) ────────│ durable │  │ presence  │
-       └───────────────┘                                         │ data    │  │ pub/sub   │
-                                                                 └─────────┘  │ rate limit│
-                                                                              └───────────┘
+│  Zustand (session, prefs)    │ ◀────────────────────────────▶ │  realtime hub, livemod task │
+│  LiveKit client (voice/video)│                                └──┬───────────┬──────────┬───┘
+└──────────────┬───────────────┘                                   │           │          │
+               │ WebRTC (mic + camera, token from API)              │      ┌────▼────┐ ┌───▼───────┐
+               ▼                                                    │      │Postgres │ │  Redis    │
+       ┌───────────────┐ ◀── server API (mute/camera/kick/close) ───┤      │ durable │ │ presence  │
+       │ LiveKit SFU   │ ─── webhooks (camera on/off) ─────────────▶│      │ data    │ │ pub/sub   │
+       └───────┬───────┘                                            │      └─────────┘ │ rate limit│
+               │ snapshot egress (stills only)                      │                  └───────────┘
+               ▼                                                    ▼
+       ┌─────────────────────────────────────────────────────────────────┐
+       │ Private S3 bucket (photos, selfies, live-video snapshots)       │
+       └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Backend
@@ -23,27 +26,31 @@
   - Access tokens are JWTs that last 15 minutes and carry a session id. Refresh tokens are opaque, stored as keyed hashes in `auth_sessions`, and **rotate on every use**. Replaying an old refresh token revokes the session.
   - Every request reloads the user row, so suspensions, bans and role changes apply immediately. Roles are never trusted from the token or the client.
 - **Errors.** One shape everywhere: `{"error": {"code", "message", "details?"}}`. Messages are written for end users, and stack traces never leave the server.
-- **Ephemeral state** (`core/store.py`). Presence, room occupancy, rate-limit counters, matchmaking queues and cross-instance pub/sub run on Redis. When `REDIS_URL` is empty, an in-memory implementation is used for single-instance development and tests; production config validation refuses to start without Redis.
+- **Ephemeral state** (`core/store.py`). Presence, room occupancy, rate-limit counters, Icebreaker queues, Werewolf phase timers and cross-instance pub/sub run on Redis. When `REDIS_URL` is empty, an in-memory implementation is used for single-instance development and tests; production config validation refuses to start without Redis.
 - **Realtime** (`websocket/`). Each instance holds its own sockets. Events are published to Redis, and every instance delivers to the sockets it owns. Clients authenticate with the first message, not a URL token, so tokens never appear in proxy logs. Channel subscriptions go through the same access checks as REST. See [realtime.md](realtime.md).
-- **Games** (`services/games.py`). The engine is server-authoritative and advances lazily: phase deadlines are stored in the session state, and any read or submission first rolls the state forward from the server clock. There are no background timers, so it works across instances and survives restarts. Scores, correctness and timing are computed only on the server. A unique constraint on `(session, user, round)` blocks duplicate answers, and rewards use idempotency keys.
-- **Rewards** (`services/rewards.py`). Gems and XP go through a ledger with unique idempotency keys, so a reward can never be granted twice.
-- **Voice.** The backend checks authentication, room access, bans, presence and speaker role, then mints a 10-minute LiveKit token. It can only publish the microphone (no camera). Host moderation is mirrored to LiveKit through its server API (mute, remove, close room).
-- **Migrations.** Alembic in `migrations/`. The initial schema is `0001`.
+- **Photos and verification** (`services/photos.py`). Uploads are decoded, downscaled and re-encoded as JPEG on the server, which strips EXIF data such as GPS location. Each photo is moderated before anyone else can see it: automatically when a provider (Sightengine) is configured, otherwise it waits for a moderator (auto-approved only in development). Files live in private storage (`core/storage.py`) and are reachable only through short-lived signed URLs; production requires `STORAGE_BACKEND=s3`. Extra photos can be limited to friends. Selfie verification asks for a random pose, a moderator compares it with the profile photos, and the selfie is deleted after review.
+- **Games** (`games/`, `services/games.py`). Each game (Chess, Ludo, Crazy Eights, Four in a Row, Truth or Dare, Werewolf) is a pure engine with no database, network or clock access; randomness comes from a server-side RNG passed in. `services/games.py` runs generic sessions on top: create (on its own or in a room), join by code, host lobby options (allow-listed per game), start, and `POST /games/{id}/action` with the client's `version`. Actions run under a row lock; a stale version gets `409 stale_version` and an illegal move gets `422 illegal_move`. Clients only ever receive `engine.view(state, viewer)`, so other players' cards, deck order and Werewolf roles never leave the server. Werewolf day and discussion phases advance on their own after a deadline kept in Redis and checked on reads, so an idle host can't stall the game. Finishing a game grants rewards with per-player idempotency keys.
+- **Rewards** (`services/rewards.py`). Gems and XP go through a ledger with unique idempotency keys, so a reward can never be granted twice. Gems buy game themes (chess boards, card backs, Ludo boards).
+- **Monetization** (`services/monetization.py`). Rewarded-ad gems are granted only after AdMob server-side verification (a signed callback). Google Play purchases (gem packs, Veyvo Plus) are checked with the Play Developer API before anything is granted. Every grant uses an idempotency key (ad transaction id or purchase-token hash).
+- **Voice and video.** The backend checks authentication, room access, bans, presence and speaker role, then mints a 10-minute LiveKit token. The token always allows the microphone (for speakers) and allows the camera only in video rooms: in friend calls (`services/calls.py`, private rooms of kind `call`) for everyone, elsewhere only for verified users whose camera the host hasn't turned off. Host moderation is mirrored to LiveKit through its server API (mute, camera off, remove, close room).
+- **Live-video checks** (`services/livemod.py`). LiveKit calls a signed webhook (`POST /rooms/livekit-webhook`) when a camera is published. For rooms that aren't friend calls, the backend starts an egress that saves a still of that camera every few seconds to the private bucket (no video is recorded). A background task moderates each still and deletes it. A clearly unsafe frame switches that person's camera off for the room and files a report with the frame as evidence; a borderline frame only files a report. This needs LiveKit, S3 storage and a moderation provider.
+- **Migrations.** Alembic in `migrations/`, from `0001` (initial schema) to `0006` (game themes).
 
 ## Mobile
 
-- **Routing.** Expo Router, with routes in `src/app`. Route groups are `(auth)`, `(onboarding)` and `(tabs)` (Home, Explore, Hangouts, Games, Profile). Detail screens are stack routes. An `AuthGate` in the root layout sends people to sign-up, verification, onboarding or the app.
+- **Routing.** Expo Router, with routes in `src/app`. Route groups are `(auth)`, `(onboarding)` and `(tabs)` (Home, Explore, Hangouts, Games, Profile). Detail screens (rooms, games, photos, verification, shop, Plus and so on) are stack routes. An `AuthGate` in the root layout sends people to sign-up, verification, onboarding or the app.
 - **State ownership.**
   - Server state lives only in TanStack Query (`src/api/hooks.ts`), with query keys in `qk`.
   - Client-only UI state lives in Zustand: session tokens (in the OS keystore via `expo-secure-store`), device preferences (theme, reduced motion, haptics, recent searches; AsyncStorage) and toasts.
   - Nothing authoritative is stored in two places.
 - **Realtime sync** (`hooks/useRealtimeSync.ts`). One WebSocket (`lib/realtime.ts`) with exponential-backoff reconnects, a heartbeat, ref-counted channel subscriptions and duplicate-event filtering. Events update or invalidate the query cache. After reconnecting or returning to the foreground, queries refetch. The socket closes in the background, so you aren't shown as online.
 - **Offline.** NetInfo feeds both TanStack's `onlineManager` (which pauses requests) and an offline banner. Chat messages are sent optimistically with a client id. Failures are marked and can be retried with the same id, which the server de-duplicates.
-- **Design system.** Tokens in `theme/tokens.ts` (separately tuned dark and light palettes, a 4-point spacing grid, a type scale), plus a UI kit in `components/ui`. Avatars are composed SVG parts (`components/avatar`), and hangout scenes are SVG illustrations (`components/scene`).
-- **Voice** (`lib/voice.ts`). LiveKit is loaded lazily, and only if the WebRTC native module exists. That keeps the app working in Expo Go while voice stays disabled there. Speaking indicators come only from real SDK events.
+- **Design system.** Tokens in `theme/tokens.ts` (separately tuned dark and light palettes, a 4-point spacing grid, a type scale), plus a UI kit in `components/ui`. People appear as real photos (`components/UserPhoto.tsx`, with a verified badge and speaking ring; galleries in `components/photos`). Game boards and tables live in `components/games` and use the player's theme from `lib/themes.ts`.
+- **Voice and video** (`lib/voice.ts`). LiveKit is loaded lazily, and only if the WebRTC native module exists. That keeps the app working in Expo Go while voice and video stay disabled there. Mic and camera use are explained before the OS prompt. Remote cameras are only downloaded while visible: friends' cameras and calls show automatically, other people's only after a tap (`components/room/VideoGrid.tsx`). If the server takes away camera rights, the camera is switched off locally. Speaking indicators come only from real SDK events.
+- **Ads and billing** (`lib/ads.ts`, `lib/billing.ts`). The app shows rewarded ads and starts Google Play purchases, but gems and Plus are granted only after the backend verifies them.
 
 ## Scaling notes
 
 - The API is stateless apart from WebSockets, so you can run several instances behind a load balancer. Sticky sessions are not required because Redis fans out events.
 - Run Postgres with connection pooling (PgBouncer) and add read replicas if needed. The hot paths are indexed (messages by conversation and time, rooms by status and visibility, notifications by recipient and time).
-- LiveKit Cloud handles media scaling and global edge routing.
+- LiveKit Cloud handles media scaling and global edge routing. Live-video checks cost one egress per public camera plus one moderation call per snapshot; tune `LIVE_VIDEO_SNAPSHOT_SECONDS` to your budget.

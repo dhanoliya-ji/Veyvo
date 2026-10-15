@@ -1,0 +1,91 @@
+# Render Blueprint for the Veyvo API: one web service + PostgreSQL + Redis (Key Value).
+# Render dashboard → New → Blueprint → pick this repo. Render will ask for every `sync: false` value.
+# Full walkthrough: docs/deployment.md → "Hosting on Render".
+services:
+  - type: web
+    name: veyvo-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    region: singapore          # pick the region closest to most of your users
+    plan: starter              # free instances sleep after 15 min idle, which breaks realtime
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PUBLIC_BASE_URL     # e.g. https://veyvo-api.onrender.com (or your own domain)
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: veyvo-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: veyvo-redis
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: DEV_EXPOSE_CODES
+        value: "false"
+      # Email codes (resend.com)
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      # Voice & video (livekit.io)
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      # Private photo storage: any S3-compatible bucket (Cloudflare R2 recommended)
+      - key: STORAGE_BACKEND
+        value: s3
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT_URL     # R2: https://<account-id>.r2.cloudflarestorage.com
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_REGION           # R2: auto
+        value: auto
+      # Photo + live video moderation (sightengine.com)
+      - key: MODERATION_PROVIDER
+        value: sightengine
+      - key: SIGHTENGINE_API_USER
+        sync: false
+      - key: SIGHTENGINE_API_SECRET
+        sync: false
+      - key: LIVE_VIDEO_MODERATION
+        value: "true"
+      # Push, ads, billing
+      - key: EXPO_PUSH_ACCESS_TOKEN
+        sync: false
+      - key: ADMOB_ENABLED
+        value: "true"
+      - key: GOOGLE_PLAY_PACKAGE
+        value: app.veyvo
+      - key: GOOGLE_PLAY_SERVICE_ACCOUNT   # paste the service-account JSON itself
+        sync: false
+      - key: GOOGLE_RTDN_TOKEN
+        generateValue: true
+
+  - type: keyvalue
+    name: veyvo-redis
+    region: singapore
+    plan: starter
+    maxmemoryPolicy: noeviction
+    ipAllowList: []              # only reachable from your Render services
+
+databases:
+  - name: veyvo-db
+    databaseName: veyvo
+    user: veyvo
+    region: singapore
+    plan: basic-256mb
+    ipAllowList: []

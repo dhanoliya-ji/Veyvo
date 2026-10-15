@@ -36,7 +36,8 @@ async def test_upload_strips_location_and_appears_in_profile(client):
     prof = (await client.get(f"/users/{u['id']}", headers=viewer["headers"])).json()
     assert prof["photo_url"] and prof["photos"][0]["id"] == photo["id"]
     # Signed URL works; tampered signature doesn't.
-    path = photo["url"].split("http://localhost:8000")[1]
+    assert photo["url"].startswith("http://test/media/")  # built from the request host, so phones on the LAN can load it
+    path = photo["url"].split("http://test")[1]
     import httpx
 
     from app.main import app

@@ -7,18 +7,21 @@
 ```
 APP_ENV=production
 PUBLIC_BASE_URL=https://api.yourdomain.com
-DATABASE_URL=postgresql+asyncpg://USER:PASS@HOST:5432/veyvo
+DATABASE_URL=postgresql+asyncpg://USER:PASS@HOST:5432/veyvo   # postgres:// URLs are converted automatically
 REDIS_URL=redis://HOST:6379/0           # use rediss:// with TLS where available
 JWT_SECRET_KEY=<python -c "import secrets; print(secrets.token_urlsafe(48))">
 DEV_EXPOSE_CODES=false
 RESEND_API_KEY=...   EMAIL_FROM="Veyvo <no-reply@yourdomain.com>"
 LIVEKIT_URL=wss://<project>.livekit.cloud   LIVEKIT_API_KEY=...   LIVEKIT_API_SECRET=...
+STORAGE_BACKEND=s3   S3_BUCKET=...   S3_ENDPOINT_URL=...   S3_ACCESS_KEY_ID=...   S3_SECRET_ACCESS_KEY=...   S3_REGION=auto
+MODERATION_PROVIDER=sightengine   SIGHTENGINE_API_USER=...   SIGHTENGINE_API_SECRET=...
+LIVE_VIDEO_MODERATION=true
 EXPO_PUSH_ACCESS_TOKEN=...               # optional, recommended
 ```
 
-The server **refuses to start** in production with a weak secret, SQLite, no Redis, or a non-HTTPS public URL.
+The server **refuses to start** in production if any of these is true: a weak secret, SQLite, no Redis, local photo storage, or a non-HTTPS public URL.
 
-**Run it:** `backend/Dockerfile` runs `alembic upgrade head`, then Uvicorn. Deploy it to any container host (Fly.io, Render, Railway, Cloud Run, ECS, a VPS):
+**Run it:** `backend/Dockerfile` runs `alembic upgrade head`, then Uvicorn on `$PORT` (default 8000). Deploy it to any container host (Render, Fly.io, Railway, Cloud Run, ECS, a VPS):
 
 - Put a TLS-terminating load balancer or proxy in front. The app trusts `X-Forwarded-*` headers (`--proxy-headers`). Restrict `--forwarded-allow-ips` to your proxy where possible.
 - Enable WebSocket upgrades on `/api/v1/ws` and set idle timeouts above 90 seconds.
@@ -32,56 +35,106 @@ The server **refuses to start** in production with a weak secret, SQLite, no Red
 |---|---|---|
 | Database | SQLite file (or Docker Postgres) | Managed PostgreSQL with backups |
 | Redis | Optional (in-memory fallback) | Required |
+| Photos | Local `backend/media/`, auto-approved | Private S3/R2 bucket, Sightengine moderation |
 | Email codes | Returned in the API response and logged | Sent via Resend, never returned |
 | API docs `/docs` | Enabled | Disabled |
 | HSTS | Off | On |
 
-## 2. LiveKit (voice)
+## 2. Hosting on Render (recommended to start)
+
+`render.yaml` in the repo root creates everything in one go: the API (Docker), PostgreSQL and Redis (Render "Key Value").
+
+1. Push the repo to GitHub (already done for this project).
+2. Go to render.com and sign in with GitHub. Then **New → Blueprint**, pick the `Veyvo` repo and choose the branch.
+3. Render lists every value it needs (the ones marked `sync: false`). Fill them in from sections 3 to 5 below. If you don't have a value yet (e.g. Google Play), leave it empty; that feature then stays switched off.
+4. Click **Apply**. The first deploy builds the image, runs the migrations and starts the API.
+5. Copy the service URL (e.g. `https://veyvo-api.onrender.com`), set it as `PUBLIC_BASE_URL` in the service's **Environment** tab, and save. Render redeploys automatically.
+6. Check `https://<your-url>/api/v1/health` returns `{"status":"ok"...}`.
+7. Point the app at it: in `mobile/eas.json`, set `EXPO_PUBLIC_API_URL` to your Render URL in the `preview` and `production` profiles.
+
+Notes:
+- The blueprint uses paid "starter" plans. Free web services sleep after 15 minutes idle, which drops WebSockets and games.
+- Regions default to Singapore. Change `region:` on all three resources together if most of your users are elsewhere.
+- Custom domain: service → **Settings → Custom Domains**, then update `PUBLIC_BASE_URL`.
+- The live-video check loop runs inside every instance. Keep one instance until you add a lock, or set `LIVE_VIDEO_MODERATION=false` on extra instances.
+
+## 3. LiveKit (voice & video)
 
 1. Create a project at livekit.io (Cloud) or self-host LiveKit.
 2. Put the URL, API key and secret in the backend env.
-3. Voice needs a native build (see below). Expo Go can't load WebRTC.
+3. **Live video safety checks.** In LiveKit Cloud → your project → **Settings → Webhooks**, add `https://<api-host>/api/v1/rooms/livekit-webhook`, signed with the same API key. When someone turns on their camera in a public room, the API asks LiveKit for a still frame every `LIVE_VIDEO_SNAPSHOT_SECONDS` (default 10). Frames go to your bucket, get moderated and are deleted. Unsafe cameras are switched off and reported with the frame as evidence. Private friend calls aren't scanned. This needs S3 storage (section 4), Sightengine (section 5) and `LIVE_VIDEO_MODERATION=true`. LiveKit bills egress minutes for the snapshots.
+4. Voice and video need the native dev or production build (see below). Expo Go can't load WebRTC.
+5. If a LiveKit secret was ever shared anywhere (chat, screenshots), rotate it in LiveKit before launch.
 
-## 3. Android builds (EAS)
+## 4. Photo storage (S3-compatible, private)
+
+Cloudflare R2 is cheapest (no egress fees). AWS S3 works the same way.
+
+1. Cloudflare dashboard → **R2 → Create bucket** (e.g. `veyvo-media`). Leave public access **off**: the API serves photos only through short-lived signed URLs.
+2. **R2 → Manage API tokens → Create token** with *Object Read & Write* on that bucket.
+3. Backend env:
+   ```
+   STORAGE_BACKEND=s3
+   S3_BUCKET=veyvo-media
+   S3_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
+   S3_ACCESS_KEY_ID=...   S3_SECRET_ACCESS_KEY=...   S3_REGION=auto
+   ```
+
+## 5. Image moderation (Sightengine)
+
+1. Create an account at sightengine.com and copy the API user and secret.
+2. Backend env: `MODERATION_PROVIDER=sightengine`, `SIGHTENGINE_API_USER`, `SIGHTENGINE_API_SECRET`.
+3. What happens:
+   - Clearly safe photos go live straight away.
+   - Borderline photos wait in **Moderation → Photos**.
+   - Clearly unsafe photos are rejected.
+   - Selfie verifications always wait for a human in **Moderation → Verifications**, and the selfie is deleted after the decision.
+
+With `MODERATION_PROVIDER=none` (development only), every photo is approved automatically.
+
+## 6. Android builds (EAS)
 
 ```bash
 cd mobile
-npm i -g eas-cli          # or use npx eas-cli@latest
-eas login
-eas init                  # writes extra.eas.projectId to app.json (also required for push)
-eas build --profile development --platform android   # dev client for testing voice/push
-eas build --profile production --platform android    # .aab for Play Store
+npx eas-cli@latest login
+npx eas-cli@latest build --profile development --platform android   # dev client for testing
+npx eas-cli@latest build --profile production --platform android    # .aab for Play Store
 ```
 
 - Set `EXPO_PUBLIC_API_URL` for each build profile in `eas.json`.
-- Push notifications: add your FCM credentials with `eas credentials` (Android → Google Service Account / FCM V1).
-- Bump `expo.version` and `android.versionCode` for every release. EAS can auto-increment (`"autoIncrement": true` is set in the production profile).
+- `google-services.json` (push) is provided through the EAS file environment variable `GOOGLE_SERVICES_JSON`.
+- Push notifications: add your FCM V1 service-account key with `eas credentials` (Android → Push Notifications).
+- EAS auto-increments `android.versionCode` in the production profile. Bump `expo.version` yourself for user-visible releases.
 
-## 4. Google Play checklist
+## 7. Google Play checklist
 
 1. **Developer account.** New personal accounts must run a **closed test with at least 12 testers for 14 continuous days** before production access. Plan for this.
 2. **App content → Target audience:** 18+ only. Don't opt into the Families program.
-3. **Content rating (IARC questionnaire):** declare user interaction (chat, voice) and user-generated content. Expect Teen or Mature.
-4. **User-generated content policy:** in-app reporting ✔, blocking ✔, moderation ✔, published guidelines ✔ (`/legal/guidelines`).
+3. **Content rating (IARC questionnaire):** declare user interaction (chat, voice, video), user-generated content and photo sharing. Expect Mature 17+ / PEGI 18 territory.
+4. **User-generated content policy:** in-app reporting ✔, blocking ✔, moderation (human queue plus automatic photo and live-video checks) ✔, published guidelines ✔ (`/legal/guidelines`).
 5. **Child safety standards** (required for social apps): published at `/legal/child-safety`, with in-app reporting including "User may be under 18" ✔ and a named contact. Fill in `safety@yourdomain`.
 6. **Account deletion:** in the app ✔, plus a web URL for the Play listing: `https://<api-host>/account/delete` ✔.
 7. **Privacy policy URL:** `https://<api-host>/legal/privacy`. Have counsel review it and add your company details.
 8. **Data safety form.** Declare:
-   - Collected: email (account management), user IDs, in-app messages (app functionality), other user-generated content (profile, posts), app interactions (game results).
-   - Not collected: location, photos, contacts, financial info, device IDs for ads.
+   - Collected: email (account management); user IDs; **photos** (profile photos, the verification selfie, which is deleted after review, and live-video frames from public rooms, which are deleted after moderation unless flagged); in-app messages; other user-generated content (profile, posts); app interactions (games); purchase history (gem packs, Plus).
+   - Advertising: AdMob may collect the device advertising ID. Declare this, and show the UMP consent form.
+   - Not collected: location (photo GPS is stripped), contacts, voice or video recordings.
    - Data is encrypted in transit, and users can request deletion.
-9. **Permissions:** `RECORD_AUDIO` (voice rooms, requested on demand) and `POST_NOTIFICATIONS`. Camera, location, contacts and media are explicitly blocked.
-10. **Foreground service:** if you add "keep talking with the screen off", declare a `microphone` foreground service type and justify it in Play Console.
-11. **Billing:** v1 sells nothing. When you add gem packs or Veyvo Plus, use **Google Play Billing** for digital goods, verify purchases server-side, and never sell randomised items without published odds.
-12. **Ads (planned):** if you add AdMob, set up the UMP consent form (GDPR) and avoid ads in voice rooms or chats.
+9. **Permissions:**
+   - `CAMERA`: photos, selfie and video, requested only when the user turns the feature on.
+   - `RECORD_AUDIO`: voice and video.
+   - `POST_NOTIFICATIONS`.
+   - Location, contacts and broad storage permissions are blocked. Photos come through the system photo picker.
+10. **Foreground service:** if you add "keep talking with the screen off", declare a `microphone` (and `camera`) foreground service type and justify it in Play Console.
+11. **Billing:** gem packs and Plus use Google Play Billing and are verified server-side. Nothing randomised is sold.
 
-## 5. Store listing assets to prepare
+## 8. Store listing assets to prepare
 
-- 512×512 icon (replace `mobile/assets/icon.png` and the adaptive icon layers with the Veyvo mark)
-- Feature graphic 1024×500 and 4–8 phone screenshots (Home, a live room scene, Trivia, Doodle, Profile, Safety centre)
-- Short description (80 characters), for example: "Hang out with people who share your vibe — voice rooms, games and new friends."
+- 512×512 icon: export from `mobile/assets/icon.png` (1024×1024 Veyvo mark).
+- Feature graphic 1024×500, and 4–8 phone screenshots: Home, a video room, a Chess or Ludo game, Werewolf, a profile with photos, the Safety centre.
+- Short description (80 characters), for example: "Meet real people who share your vibe: video rooms, real games and new friends."
 
-## 6. Money features (AdMob + Google Play Billing)
+## 9. Money features (AdMob + Google Play Billing)
 
 Everything is server-verified. The app never grants gems or Plus by itself.
 

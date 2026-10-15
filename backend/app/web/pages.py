@@ -74,7 +74,7 @@ async def privacy():
 <ul><li>No real name, phone number, contacts, location or date of birth. Photo location data is stripped on upload.</li>
 <li>No IP address storage. IPs are used briefly, in hashed form, only to limit abuse (rate limiting) and then expire.</li>
 <li>No advertising identifiers, no selling or renting your data, and no data brokers.</li>
-<li>Voice and video in hangouts and calls are relayed live and <strong>are not recorded</strong> by Veyvo. Your camera and microphone are only used while you turn them on.</li></ul>
+<li>Voice and video in hangouts and calls are relayed live and <strong>are not recorded</strong> by Veyvo. Your camera and microphone are only used while you turn them on.</li><li><strong>Live video safety checks:</strong> while your camera is on in a hangout that isn't a private call with a friend, we take a still image of your video every few seconds and run it through an automated image-safety check. Images that pass are deleted straight away. If an image may break our guidelines, that single image is kept as evidence for our safety team to review, and if it is clearly unsafe your camera is switched off for that hangout. Private calls between friends are not checked this way.</li></ul>
 <h2>How we use it</h2>
 <p>To run the service (accounts, messaging, hangouts, games), keep people safe (reports, moderation, blocking), and send notifications you've enabled. Notification previews of messages are <strong>off by default</strong>.</p>
 <h2>Who can see what</h2>
@@ -87,7 +87,7 @@ async def privacy():
 <h2>How long we keep data</h2>
 <ul><li>Hangout chat: 30 days, then deleted automatically.</li><li>Notifications: 90 days.</li>
 <li>Report evidence: cleared 180 days after a report is resolved.</li>
-<li>Verification selfies: deleted immediately after review.</li>
+<li>Verification selfies: deleted immediately after review.</li><li>Live video safety images: deleted right after the check, unless flagged (then kept with the report).</li>
 <li>Profile photos: until you delete them or your account (deleted photos are removed from storage).</li>
 <li>Direct messages: until you or the other person deletes them, or an account is deleted.</li>
 <li>Everything else: until you delete your account.</li></ul>
@@ -96,7 +96,7 @@ async def privacy():
 <li><strong>Delete your account:</strong> in the app (Settings → Account → Delete account) or on the web at <a href="/account/delete">/account/delete</a>. Deletion is permanent and immediate: your profile, messages you sent, chat, posts, friendships and all other personal data are erased. Reports you filed are kept without your identity so open safety reviews can finish.</li>
 <li>You can also contact us at <a href="mailto:{CONTACT}">{CONTACT}</a> to access, correct or delete your data.</li></ul>
 <h2>Security</h2><p>Data is encrypted in transit (HTTPS/TLS). Passwords are hashed with Argon2id, sign-in tokens are short-lived and rotate, and staff access to moderation tools is role-restricted and audited.</p>
-<h2>Service providers</h2><p>We use infrastructure providers to host the service, send email codes and deliver push notifications, a real-time media provider to relay live voice and video, private cloud storage for photos, and (where enabled) an image-safety service that checks uploaded photos. Payments are processed by Google Play and ads by Google AdMob, under their own privacy policies. They process data only on our instructions.</p>
+<h2>Service providers</h2><p>We use infrastructure providers to host the service, send email codes and deliver push notifications, a real-time media provider to relay live voice and video, private cloud storage for photos, and (where enabled) an image-safety service that checks uploaded photos and still images from live video in hangouts. Payments are processed by Google Play and ads by Google AdMob, under their own privacy policies. They process data only on our instructions.</p>
 <h2>Adults only</h2><p>Veyvo is for people aged 18 and over. If we learn an account belongs to someone younger, we delete it.</p>
 <h2>Changes</h2><p>We'll notify you in the app before material changes take effect.</p>
 <p class="muted">Contact: <a href="mailto:{CONTACT}">{CONTACT}</a></p>""",

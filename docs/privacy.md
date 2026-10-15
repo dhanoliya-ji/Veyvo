@@ -12,6 +12,7 @@ Veyvo's rule: **collect the minimum, default to private, enforce on the server.*
 | Username, display name, bio, interests, vibe | Profile | `profiles`, `user_interests` | Until deletion |
 | Profile photos (re-encoded, EXIF/GPS stripped, moderated) | Profile | `photos` + private bucket, signed URLs | Until the user deletes them or the account |
 | Verification selfie | Prove photos are real | private bucket | **Deleted immediately after review**; only `verified_at` is kept |
+| Live-video safety frames (public rooms only, every few seconds while a camera is on) | Automatic moderation | private bucket (`livemod/`) | **Deleted right after the check**; a flagged frame is kept as report evidence (`evidence/live/`) and cleared with the report |
 | Game themes, purchases | Features / accounting | `profiles.game_theme`, `store_purchases` | Purchases kept for accounting with the user link removed on deletion |
 | Privacy & notification settings | User control | `privacy_settings` | Until deletion |
 | Friendships, requests, blocks | Social graph and safety | respective tables | Until deletion |
@@ -25,7 +26,7 @@ Veyvo's rule: **collect the minimum, default to private, enforce on the server.*
 | Presence and online status | Live features | Redis only, with a TTL of about 75 seconds | Ephemeral |
 | IP address | Abuse rate limiting | Redis, as a keyed hash in rate-limit counters only | Minutes (window TTL) |
 
-**Never collected:** real name, phone, contacts, precise or approximate location (photo GPS is stripped), voice or video recordings. Camera and microphone are used only while the person has them turned on.
+**Never collected:** real name, phone, contacts, precise or approximate location (photo GPS is stripped), voice or video recordings (live-video safety frames are single stills, checked and deleted). Camera and microphone are used only while the person has them turned on.
 
 ## Defaults (most private first)
 

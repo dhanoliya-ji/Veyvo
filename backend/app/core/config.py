@@ -76,6 +76,16 @@ class Settings(BaseSettings):
     google_rtdn_token: str = ""
     max_message_length: int = 2000
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _async_driver(cls, value: object) -> object:
+        # Hosts like Render/Heroku hand out postgres:// or postgresql:// URLs; we need the asyncpg driver.
+        if isinstance(value, str):
+            for prefix in ("postgres://", "postgresql://"):
+                if value.startswith(prefix):
+                    return "postgresql+asyncpg://" + value[len(prefix) :]
+        return value
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
