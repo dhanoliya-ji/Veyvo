@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query
 from app.api.dependencies import DB, ActiveUser
 from app.games import ENGINES
 from app.schemas.common import Ok
-from app.schemas.games import GameActionIn, GameCreateIn, GameView
+from app.schemas.games import GameActionIn, GameCreateIn, GameInviteIn, GameInviteOut, GameView
 from app.schemas.social import RoomDetail
 from app.services import games
 from app.services.rate_limit import hit
@@ -61,6 +61,13 @@ async def get_game(game_id: uuid.UUID, user: ActiveUser, db: DB):
 @router.post("/{game_id}/join", response_model=GameView)
 async def join(game_id: uuid.UUID, user: ActiveUser, db: DB):
     return await games.join_game(db, user, game_id)
+
+
+@router.post("/{game_id}/invite", response_model=GameInviteOut)
+async def invite(game_id: uuid.UUID, body: GameInviteIn, user: ActiveUser, db: DB):
+    """Invite friends to this game's lobby. They get a notification and can join straight away."""
+    await hit("game_invite", str(user.id))
+    return await games.invite_friends(db, user, game_id, body.user_ids)
 
 
 @router.post("/{game_id}/leave", response_model=Ok)

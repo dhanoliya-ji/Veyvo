@@ -8,6 +8,7 @@ from app.content.catalog import DEFAULT_GAME_THEME, KUDOS_EMOJI, KUDOS_TAGS, ite
 from app.content.prompts import PROMPT_TEXT
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden
+from app.core.textfilter import check_text
 from app.models import Interest, Kudos, OwnedItem, PrivacySettings, Profile, User, UserInterest
 from app.schemas.profile import (
     InterestOut,
@@ -139,9 +140,20 @@ async def username_available(db: AsyncSession, username: str, user_id: uuid.UUID
 
 
 async def set_username(db: AsyncSession, profile: Profile, username: str) -> None:
+    check_text(username, allow_contact=False)
     if not await username_available(db, username, profile.user_id):
         raise Conflict("That username is taken.", code="username_taken")
     profile.username = username
+
+
+def set_profile_text(profile: Profile, *, display_name: str | None = None, bio: str | None = None) -> None:
+    """Display name and bio are seen by strangers: no slurs and no contact details. Checked before anything changes."""
+    check_text(display_name, allow_contact=False)
+    check_text(bio, allow_contact=False)
+    if display_name is not None:
+        profile.display_name = display_name
+    if bio is not None:
+        profile.bio = bio
 
 
 async def commit_unique(db: AsyncSession) -> None:

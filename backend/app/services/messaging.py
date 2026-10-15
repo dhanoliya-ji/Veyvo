@@ -9,6 +9,7 @@ from app.content.prompts import PROMPT_TEXT
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Forbidden, NotFound
 from app.core.storage import get_storage
+from app.core.textfilter import check_text
 from app.models import Conversation, ConversationMember, Message, Photo, User
 from app.schemas.common import Page
 from app.schemas.social import ConversationOut, MessageOut
@@ -298,6 +299,7 @@ async def send_message(
     await _membership(db, conversation_id, user.id)
     if existing := await _existing(db, user, conversation_id, client_id):
         return message_out(existing)
+    check_text(content, allow_contact=True)  # direct messages are between friends: only slurs and threats are blocked
     other = await _recipient(db, user, conversation_id)
     stored_context = await _validate_context(db, other, context)
     message = Message(

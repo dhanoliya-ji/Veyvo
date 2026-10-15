@@ -20,6 +20,7 @@ const ACCENT_FOR: Record<string, string> = {
   streak_milestone: '#E8875B',
   level_up: '#2FA884',
   friend_made: '#E2607A',
+  friendship_milestone: '#C45BD8',
 };
 
 export function momentHeadline(m: Moment): { big: string; label: string } {
@@ -35,6 +36,10 @@ export function momentHeadline(m: Moment): { big: string; label: string } {
       return { big: `${s.level ?? 1}`, label: 'level reached' };
     case 'friend_made':
       return { big: `${s.friends ?? 1}`, label: s.friends === 1 ? 'friend on Veyvo' : 'friends on Veyvo' };
+    case 'friendship_milestone':
+      if (s.milestone === 'anniversary') return { big: `${s.label ?? ''}`, label: 'of friendship' };
+      if (s.milestone === 'games') return { big: `${s.games ?? 0}`, label: 'games with a friend' };
+      return { big: `${s.level ?? 1}`, label: 'friendship level' };
     default:
       return { big: '', label: '' };
   }

@@ -10,6 +10,7 @@ from app.core.database import utcnow
 from app.core.exceptions import AppError, Forbidden, NotFound, ServiceUnavailable
 from app.core.logging import logger
 from app.core.store import get_store
+from app.core.textfilter import check_text
 from app.models import Community, CommunityMember, Interest, OwnedItem, Room, RoomMember, RoomMessage, User
 from app.schemas.common import like_pattern
 from app.schemas.social import (
@@ -31,6 +32,9 @@ PRESENCE_TTL = 60
 UNLISTED_KINDS = ("call", "game", "squad")
 # These end on their own as soon as the last person leaves.
 AUTO_END_KINDS = ("call", "game")
+# Small private rooms where everyone sees everyone: nobody may join while someone they have a block with is inside.
+# Public hangouts instead just hide blocked people from each other's view.
+BLOCK_CHECKED_KINDS = ("squad", "game", "call")
 EMPTY_ROOM_GRACE = timedelta(minutes=15)
 
 ROOM_RULES = [
@@ -144,6 +148,15 @@ async def check_access(db: AsyncSession, room: Room, user: User) -> RoomMember |
             if (cm is None or cm.status != "active") and user.role not in ("moderator", "admin"):
                 raise Forbidden("This hangout is for community members.", code="room_private")
     return member
+
+
+async def check_present_blocks(db: AsyncSession, room: Room, user: User) -> None:
+    """Refuse joining a squad, game or call room while someone inside has a block (either way) with this person."""
+    if room.kind not in BLOCK_CHECKED_KINDS:
+        return
+    others = set(await present_ids(room.id)) - {user.id}
+    if others and others & await blocked_ids(db, user.id):
+        raise Forbidden("You can't join because of a block.", code="room_blocked_member")
 
 
 def _can_moderate(room: Room, member: RoomMember | None, user: User) -> bool:
@@ -296,6 +309,8 @@ async def room_detail(db: AsyncSession, room: Room, user: User) -> RoomDetail:
 
 # ----- Lifecycle -----
 async def create_room(db: AsyncSession, user: User, data: RoomIn) -> Room:
+    check_text(data.title, allow_contact=False)
+    check_text(data.description, allow_contact=False)
     if data.interest_id is not None and await db.get(Interest, data.interest_id) is None:
         raise AppError("Unknown topic.", code="invalid_interest", status_code=422)
     from app.services.monetization import room_capacity_limit
@@ -421,6 +436,7 @@ async def join_room(db: AsyncSession, user: User, room_id: uuid.UUID) -> RoomDet
     member = await check_access(db, room, user)
     if room.status == "ended":
         raise AppError("This hangout has ended.", code="room_ended", status_code=410)
+    await check_present_blocks(db, room, user)
     if room.status == "scheduled":
         if room.host_id != user.id:
             raise AppError("This hangout hasn't started yet.", code="room_not_started", status_code=409)
@@ -583,6 +599,8 @@ async def update_room(db: AsyncSession, user: User, room: Room, changes: dict) -
     member = await check_access(db, room, user)
     if not _can_moderate(room, member, user):
         raise Forbidden("Only hosts can change the hangout settings.", code="not_room_host")
+    check_text(changes.get("title"), allow_contact=False)
+    check_text(changes.get("description"), allow_contact=False)
     if "scene" in changes and changes["scene"] not in FREE_SCENES:
         item = item_for_value("scene", changes["scene"])
         if item is None:
@@ -693,6 +711,7 @@ async def send_chat(db: AsyncSession, user: User, room: Room, content: str) -> R
     member = await _require_present(db, room, user)
     if room.kind == "study" and timer_view(room) and timer_view(room).phase == "focus" and not _can_moderate(room, member, user):
         raise AppError("Chat opens during the break. Stay focused!", code="chat_locked", status_code=409)
+    check_text(content, allow_contact=False)
     msg = RoomMessage(room_id=room.id, sender_id=user.id, content=content)
     db.add(msg)
     await db.commit()

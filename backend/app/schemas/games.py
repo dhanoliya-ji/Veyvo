@@ -50,3 +50,13 @@ class GameActionIn(ApiModel):
     action: dict
     # The version the client saw; stale actions are rejected so double taps can't apply twice.
     version: int | None = None
+
+
+class GameInviteIn(ApiModel):
+    user_ids: list[uuid.UUID] = Field(min_length=1, max_length=8)
+
+
+class GameInviteOut(ApiModel):
+    # Friends who got the invite, and friends who were skipped (invites off, blocked, or not friends).
+    invited: list[uuid.UUID]
+    skipped: list[uuid.UUID]

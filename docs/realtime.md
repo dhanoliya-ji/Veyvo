@@ -47,6 +47,7 @@ Clients drop events whose `id` they've already seen (duplicates can occur after 
 | `discover.match` | user | `{friend, conversation_id}` | Both people after a mutual Friend Swipe |
 | `squad.message` / `squad.read` / `squad.updated` / `squad.hangout` | user | squad message / read marker / changed squad / live squad room | Squad members (blocked people's messages are filtered out) |
 | `pen_pal.updated` | user | `{pen_pal_id}` | Both pen pals |
+| `game.invite` | user | `{game_id, game_type, game_name, code, from}` | Invited friends |
 | `icebreaker.matched` / `icebreaker.updated` | user | `{session_id}` | Both participants |
 | `room.removed` | user | `{room_id, banned}` | The removed person |
 | `account.status` | user | `{status, until?}` | The affected account |

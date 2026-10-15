@@ -5,7 +5,7 @@ import { qk } from './hooks';
 import type { Page, UserSummary } from './types';
 
 // Mirrors backend/app/schemas/moments.py
-export type MomentKind = 'game_finished' | 'room_hangout' | 'streak_milestone' | 'level_up' | 'friend_made';
+export type MomentKind = 'game_finished' | 'room_hangout' | 'streak_milestone' | 'level_up' | 'friend_made' | 'friendship_milestone';
 export type Moment = { id: string; kind: MomentKind; title: string; stats: Record<string, any>; created_at: string };
 
 export type SeasonEvent = {

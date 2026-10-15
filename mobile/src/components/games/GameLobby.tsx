@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Share, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
-import { Crown, LogOut, Play, Share2, UserPlus } from 'lucide-react-native';
+import { Crown, LogOut, Play, Send, Share2, UserPlus } from 'lucide-react-native';
 
 import { GAME_META, isApiError } from '@/api/games-extra';
 import { useGameActions } from '@/api/hooks';
@@ -15,6 +15,7 @@ import { space } from '@/theme/tokens';
 import type { GameCtx } from './GameParts';
 import { GameOptions } from './GameOptions';
 import { GamePreview } from './GamePreview';
+import { InviteFriendsSheet } from './InviteFriendsSheet';
 
 export async function shareGameCode(name: string, code: string) {
   try {
@@ -29,6 +30,7 @@ export function GameLobby({ ctx, onJoin, joining, onLeave }: { ctx: GameCtx; onJ
   const { game, meId, isPlayer } = ctx;
   const actions = useGameActions(game.id);
   const [startError, setStartError] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
   const active = game.players.filter((p) => p.active);
   const isHost = game.host_id === meId;
   const host = game.players.find((p) => p.id === game.host_id);
@@ -61,10 +63,22 @@ export function GameLobby({ ctx, onJoin, joining, onLeave }: { ctx: GameCtx; onJ
           {game.code}
         </Text>
         <Text variant="caption" tone="muted" center>
-          Friends can join from Games → "Join with a code".
+          {isPlayer ? 'Invite friends straight in, or share the code.' : 'Friends can join from Games → "Join with a code".'}
         </Text>
-        <Button title="Share code" icon={Share2} variant="secondary" size="sm" onPress={() => shareGameCode(meta.name, game.code)} />
+        <View style={styles.actions}>
+          {isPlayer && !full ? <Button title="Invite friends" icon={Send} size="sm" onPress={() => setInviting(true)} /> : null}
+          <Button title="Share code" icon={Share2} variant="secondary" size="sm" onPress={() => shareGameCode(meta.name, game.code)} />
+        </View>
       </Card>
+      {isPlayer ? (
+        <InviteFriendsSheet
+          gameId={game.id}
+          gameName={meta.name}
+          visible={inviting}
+          onClose={() => setInviting(false)}
+          excludeIds={active.map((p) => p.id)}
+        />
+      ) : null}
 
       <View style={{ gap: space.md }}>
         <View style={styles.rowBetween}>
@@ -159,6 +173,7 @@ export function GameLobby({ ctx, onJoin, joining, onLeave }: { ctx: GameCtx; onJ
 
 const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.sm },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
   player: { alignItems: 'center', gap: 4, width: 76 },
   crown: { position: 'absolute', top: -4, right: -4, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

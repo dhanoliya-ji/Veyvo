@@ -43,6 +43,10 @@ async def username_check(user: CurrentUser, db: DB, username: str = Query(max_le
         name = normalize_username(username)
     except ValueError as exc:
         return UsernameCheck(username=username, available=False, reason=str(exc))
+    from app.core.textfilter import find_blocked_terms
+
+    if find_blocked_terms(name):
+        return UsernameCheck(username=name, available=False, reason="Please choose a different username.")
     available = await profiles.username_available(db, name, user.id)
     return UsernameCheck(username=name, available=available, reason=None if available else "That username is taken.")
 
@@ -52,9 +56,8 @@ async def onboarding(body: OnboardingIn, user: CurrentUser, db: DB):
     if user.email_verified_at is None:
         raise Forbidden("Please verify your email first.", code="email_unverified")
     profile = user.profile
+    profiles.set_profile_text(profile, display_name=body.display_name, bio=body.bio)
     await profiles.set_username(db, profile, body.username)
-    profile.display_name = body.display_name
-    profile.bio = body.bio
     await profiles.set_interests(db, user.id, body.interest_ids)
     if body.privacy:
         profiles.apply_privacy(user.privacy, body.privacy)
@@ -70,12 +73,9 @@ async def onboarding(body: OnboardingIn, user: CurrentUser, db: DB):
 @router.patch("/me/profile", response_model=MeOut)
 async def update_profile(body: ProfileUpdate, user: ActiveUser, db: DB):
     profile = user.profile
+    profiles.set_profile_text(profile, display_name=body.display_name, bio=body.bio)
     if body.username is not None and body.username != profile.username:
         await profiles.set_username(db, profile, body.username)
-    if body.display_name is not None:
-        profile.display_name = body.display_name
-    if body.bio is not None:
-        profile.bio = body.bio
     if body.clear_vibe:
         profile.vibe = None
     elif body.vibe is not None:

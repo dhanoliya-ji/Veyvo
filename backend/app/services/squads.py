@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
 from app.core.store import get_store
+from app.core.textfilter import check_text
 from app.models import Room, RoomMember, Squad, SquadMember, SquadMessage, User
 from app.schemas.common import Page
 from app.schemas.social import RoomDetail
@@ -160,6 +161,7 @@ async def _publish_squad(member_ids, squad_id: uuid.UUID, event: str = "squad.up
 
 # ----- Squads -----
 async def create_squad(db: AsyncSession, user: User, name: str, emoji: str, member_ids: list[uuid.UUID]) -> SquadOut:
+    check_text(name, allow_contact=False)  # squad names show up in invites and hangout titles
     ids = list(dict.fromkeys(i for i in member_ids if i != user.id))
     if len(ids) + 1 > MAX_SQUAD_SIZE:
         raise AppError(f"A squad can have up to {MAX_SQUAD_SIZE} people.", code="squad_full", status_code=422)
@@ -213,6 +215,7 @@ async def update_squad(db: AsyncSession, user: User, squad_id: uuid.UUID, change
     if me.role != "owner":
         raise Forbidden("Only the squad owner can change this.", code="not_squad_owner")
     squad = await _squad(db, squad_id)
+    check_text(changes.get("name"), allow_contact=False)
     if changes.get("name"):
         squad.name = changes["name"]
     if changes.get("emoji"):
@@ -331,6 +334,7 @@ def _client_key(user_id: uuid.UUID, client_id: str) -> str:
 
 async def send_message(db: AsyncSession, user: User, squad_id: uuid.UUID, content: str, client_id: str | None) -> SquadMessageOut:
     me = await _membership(db, squad_id, user.id)
+    check_text(content, allow_contact=True)  # squads are friends only: only slurs and threats are blocked
     store = get_store()
     if client_id:
         # Idempotent retry: the same client id returns the original message.
@@ -436,9 +440,12 @@ async def start_hangout(db: AsyncSession, user: User, squad_id: uuid.UUID) -> Ro
         for m in members:
             db.add(RoomMember(room_id=room.id, user_id=m.user_id, role="host" if m.user_id == user.id else "invited"))
         created = True
-    elif await db.get(RoomMember, (room.id, user.id)) is None:
-        # Joined the squad after this hangout started.
-        db.add(RoomMember(room_id=room.id, user_id=user.id, role="speaker"))
+    else:
+        # Check before touching anything, so a refused join leaves no trace.
+        await rooms.check_present_blocks(db, room, user)
+        if await db.get(RoomMember, (room.id, user.id)) is None:
+            # Joined the squad after this hangout started.
+            db.add(RoomMember(room_id=room.id, user_id=user.id, role="speaker"))
     if created:
         blocked = await blocked_ids(db, user.id)
         for m in members:

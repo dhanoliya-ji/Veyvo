@@ -6,7 +6,9 @@ from app.api.dependencies import DB, ActiveUser
 from app.schemas.common import Ok, Page
 from app.schemas.social import ConversationOut, MessageIn, MessageOut, StartConversationIn
 from app.services import messaging
+from app.services import spark as spark_service
 from app.services.rate_limit import hit
+from app.services.spark import SparkOut
 
 router = APIRouter(prefix="/conversations", tags=["messaging"])
 
@@ -29,6 +31,12 @@ async def get_conversation(conversation_id: uuid.UUID, user: ActiveUser, db: DB)
     await messaging._membership(db, conversation_id, user.id)
     conv = await db.get(Conversation, conversation_id)
     return await messaging.conversation_view(db, user, conv)
+
+
+@router.get("/{conversation_id}/spark", response_model=SparkOut)
+async def spark(conversation_id: uuid.UUID, user: ActiveUser, db: DB):
+    """A friendly opener for a quiet chat (nothing for 24h). Only a suggestion: it is never sent for you."""
+    return await spark_service.suggestion(db, user, conversation_id)
 
 
 @router.get("/{conversation_id}/messages", response_model=Page[MessageOut])

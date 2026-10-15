@@ -32,6 +32,7 @@ PREF_FOR_TYPE = {
     "pen_pal_matched": "friend_requests",
     "letter_arrived": "messages",
     "pen_pal_friends": "friend_requests",
+    "milestone": "friend_requests",
 }
 
 # Push text. Message content is never included unless the recipient opted into previews.
@@ -51,6 +52,7 @@ PUSH_TEXT = {
     "pen_pal_matched": ("New pen pal", "You have a new pen pal. Write the first letter ✉️"),
     "letter_arrived": ("A letter arrived", "A letter from your pen pal just arrived ✉️"),
     "pen_pal_friends": ("You're friends now", "You and your pen pal are friends now"),
+    "milestone": ("Friendship milestone 🎉", "You and {actor} just hit a friendship milestone"),
     "icebreaker_connected": ("New friend!", "Your icebreaker match wants to stay friends too"),
     "moderation_warning": ("Account notice", "Please review a notice about your account"),
     "security": ("Security notice", "There was a security change on your account"),

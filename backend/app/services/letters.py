@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import utcnow
 from app.core.exceptions import Conflict, Forbidden, NotFound
+from app.core.textfilter import check_text
 from app.models import FriendRequest, Letter, MaintenanceMarker, PenPal, PenPalWaiting, Profile, User
 from app.schemas.letters import (
     FindPenPalOut,
@@ -230,6 +231,7 @@ async def send_letter(db: AsyncSession, user: User, pen_pal_id: uuid.UUID, conte
     other_id = _other_id(pal, user.id)
     if await is_blocked_either(db, user.id, other_id):
         raise NotFound("Pen pal not found.", code="pen_pal_not_found")
+    check_text(content, allow_contact=False)  # pen pals are strangers until they choose to become friends
     now = utcnow()
     in_transit = await db.scalar(
         select(Letter)

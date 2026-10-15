@@ -220,3 +220,48 @@ async def test_squad_night_settings_and_reminder_idempotent(client):
     await client.patch(f"/squads/{sid}", json={"weekly_day": later.weekday(), "weekly_time": later.strftime("%H:%M")}, headers=a["headers"])
     async with database.session_factory()() as db:
         assert await squads.send_reminders(db) == 0
+
+
+async def test_squad_room_refuses_joining_with_a_block_inside(client):
+    a, b, c = await make_user(client), await make_user(client), await make_user(client)
+    await befriend(client, a, b)
+    await befriend(client, a, c)
+    await befriend(client, b, c)
+    sid = (await _squad(client, a, [b, c]))["id"]
+    room = (await client.post(f"/squads/{sid}/room", headers=a["headers"])).json()
+    assert (await client.post(f"/squads/{sid}/room", headers=b["headers"])).status_code == 200
+
+    # c blocks b while b is inside: c can't join, through the squad or the room id.
+    await client.post(f"/blocks/{b['id']}", headers=c["headers"])
+    r = await client.post(f"/squads/{sid}/room", headers=c["headers"])
+    assert r.status_code == 403 and r.json()["error"]["code"] == "room_blocked_member"
+    assert "block" in r.json()["error"]["message"]
+    r = await client.post(f"/rooms/{room['id']}/join", headers=c["headers"])
+    assert r.status_code == 403 and r.json()["error"]["code"] == "room_blocked_member"
+
+    # Once b leaves, c can come in.
+    await client.post(f"/rooms/{room['id']}/leave", headers=b["headers"])
+    assert (await client.post(f"/squads/{sid}/room", headers=c["headers"])).status_code == 200
+
+
+async def test_squad_hangout_invite_skips_blocks_with_the_starter(client):
+    a, b, c = await make_user(client), await make_user(client), await make_user(client)
+    await befriend(client, a, b)
+    await befriend(client, a, c)
+    sid = (await _squad(client, a, [b, c]))["id"]
+    await client.post(f"/blocks/{a['id']}", headers=c["headers"])  # c blocked the starter
+    assert (await client.post(f"/squads/{sid}/room", headers=a["headers"])).status_code == 200
+    async with database.session_factory()() as db:
+        invited = {n.recipient_id for n in await db.scalars(select(Notification).where(Notification.type == "room_invite"))}
+    assert uuid.UUID(b["id"]) in invited and uuid.UUID(c["id"]) not in invited
+
+
+async def test_public_hangout_still_allows_joining_with_a_block_inside(client):
+    host, g1, g2 = await make_user(client), await make_user(client), await make_user(client)
+    body = {"title": "Late night lofi chat", "format": "voice", "visibility": "public", "scene": "cafe", "capacity": 6}
+    room = (await client.post("/rooms", json=body, headers=host["headers"])).json()
+    assert (await client.post(f"/rooms/{room['id']}/join", headers=g1["headers"])).status_code == 200
+    await client.post(f"/blocks/{g1['id']}", headers=g2["headers"])
+    r = await client.post(f"/rooms/{room['id']}/join", headers=g2["headers"])
+    assert r.status_code == 200
+    assert g1["id"] not in {p["id"] for p in r.json()["participants"]}  # hidden from view instead

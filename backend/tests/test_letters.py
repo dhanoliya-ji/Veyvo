@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import timedelta
 
@@ -119,6 +120,7 @@ async def test_delivery_notice_sent_exactly_once(client):
     a, b = await make_user(client), await make_user(client)
     pid = await _match(client, a, b)
     await scheduler.tick()  # sets the watermark
+    await asyncio.sleep(0.05)  # Windows clocks tick in ~15 ms steps; keep the delivery strictly after the watermark
     await client.post(f"/letters/{pid}", json={"content": LETTER}, headers=a["headers"])
     await _deliver_all(pid, ago=timedelta(0))
     await scheduler.tick()

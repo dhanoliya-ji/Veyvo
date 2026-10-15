@@ -22,9 +22,14 @@ from app.games.base import IllegalMove
 from app.models import GamePlayer, GameSession, Room, RoomMember, User
 from app.schemas.games import GamePlayerOut, GameView
 from app.schemas.social import RoomDetail
-from app.services import moments, rewards
-from app.services.users import blocked_ids, friend_ids, summaries
-from app.websocket.hub import publish
+from app.services import milestones, moments, rewards
+from app.services.users import blocked_ids, friend_ids, get_friendship, summaries, summary
+from app.websocket.hub import publish, publish_user
+
+# Friends invited to a game are kept in `GameSession.settings["invited"]` (user id strings).
+# It never reaches engines or clients' settings view.
+INVITED_KEY = "invited"
+MAX_INVITES = 8
 
 # Werewolf day/discussion move on automatically after this long, so an idle host can't stall the game.
 WEREWOLF_PHASE_SECONDS = 120
@@ -103,8 +108,17 @@ async def find_by_code(db: AsyncSession, code: str) -> GameSession:
     return game
 
 
+def invited_ids(game: GameSession) -> set[str]:
+    return set((game.settings or {}).get(INVITED_KEY) or [])
+
+
+def _public_settings(game: GameSession) -> dict:
+    return {k: v for k, v in (game.settings or {}).items() if k != INVITED_KEY}
+
+
 async def check_game_access(db: AsyncSession, user: User, game: GameSession) -> None:
-    if game.room_id:
+    # A friend invited by a player may join a game in a private hangout without joining the hangout.
+    if game.room_id and str(user.id) not in invited_ids(game):
         from app.services.rooms import check_access, get_room
 
         await check_access(db, await get_room(db, game.room_id), user)
@@ -168,7 +182,7 @@ async def start_game(db: AsyncSession, user: User, session_id: uuid.UUID) -> Gam
     players = [p for p in await _players(db, game.id) if p.active]
     if len(players) < engine.min_players:
         raise AppError(f"This game needs at least {engine.min_players} players.", code="not_enough_players", status_code=409)
-    options = dict(game.settings or {})
+    options = _public_settings(game)
     if game.game_type == "werewolf":
         options["host"] = str(game.host_id)
     game.state = engine.new_state([str(p.user_id) for p in players], _rng, options or None)
@@ -177,6 +191,74 @@ async def start_game(db: AsyncSession, user: User, session_id: uuid.UUID) -> Gam
     await db.commit()
     await _notify_changed(game)
     return await view(db, user, game.id)
+
+
+async def invite_friends(db: AsyncSession, user: User, session_id: uuid.UUID, user_ids: list[uuid.UUID]) -> dict:
+    """Invite friends to a game lobby. Only active players can invite, and only their own friends.
+
+    People who are blocked, not friends, or have invites switched off are skipped. Engines don't accept
+    new players once a game has started, so invites only work in the lobby.
+    """
+    from app.services.notifications import notify
+
+    game = await _locked(db, session_id)
+    await check_game_access(db, user, game)
+    player = await db.get(GamePlayer, (game.id, user.id))
+    if player is None or not player.active:
+        raise Forbidden("Join the game to invite friends.", code="not_in_game")
+    if game.status != "lobby":
+        raise Conflict("This game has already started. Invite friends to the next one.", code="game_started")
+    engine_for(game)
+    targets = list(dict.fromkeys(uid for uid in user_ids if uid != user.id))[:MAX_INVITES]
+    if not targets:
+        raise AppError("Pick at least one friend to invite.", code="invalid_invite", status_code=422)
+
+    friends = await friend_ids(db, user.id)
+    blocked = await blocked_ids(db, user.id)
+    players = {p.user_id for p in await _players(db, game.id) if p.active}
+    users = {u.id: u for u in await db.scalars(select(User).where(User.id.in_(targets)))}
+    invited: list[uuid.UUID] = []
+    skipped: list[uuid.UUID] = []
+    for uid in targets:
+        target = users.get(uid)
+        ok = (
+            target is not None
+            and target.status == "active"
+            and uid in friends
+            and uid not in blocked
+            and not (target.privacy and target.privacy.who_can_invite == "nobody")
+        )
+        if not ok:
+            skipped.append(uid)
+        elif uid not in players:
+            invited.append(uid)
+    if not invited:
+        if skipped:
+            raise Forbidden("These friends aren't accepting game invites right now.", code="invites_closed")
+        return {"invited": [], "skipped": []}
+
+    game.settings = {**(game.settings or {}), INVITED_KEY: sorted(invited_ids(game) | {str(uid) for uid in invited})}
+    name = GAME_NAMES.get(game.game_type, "a game")
+    for uid in invited:
+        await notify(
+            db,
+            uid,
+            "game_invite",
+            actor_id=user.id,
+            entity_type="game",
+            entity_id=str(game.id),
+            data={"game_type": game.game_type, "game_name": name, "code": game.code},
+            group_key=f"game_invite:{game.id}",
+        )
+    await db.commit()
+    sender = summary(user.profile, user.id).model_dump(mode="json")
+    for uid in invited:
+        await publish_user(
+            uid,
+            "game.invite",
+            {"game_id": str(game.id), "game_type": game.game_type, "game_name": name, "code": game.code, "from": sender},
+        )
+    return {"invited": invited, "skipped": skipped}
 
 
 def _clean_options(game_type: str, options: dict) -> dict:
@@ -265,6 +347,9 @@ async def _finish(db: AsyncSession, game: GameSession) -> None:
         for b in ids[i + 1 :]:
             if b in friends:
                 await rewards.add_friendship_points(db, a, b, 3)
+                friendship = await get_friendship(db, a, b)
+                if friendship is not None:
+                    await milestones.game_finished_together(db, friendship)
 
 
 def _phase_key(game_id: uuid.UUID) -> str:
@@ -409,7 +494,7 @@ async def view(db: AsyncSession, user: User, game_id: uuid.UUID) -> GameView:
         board=engine.view(game.state, viewer) if started else None,
         legal_actions=engine.legal_actions(game.state, viewer) if started and viewer and game.status == "active" else [],
         results=engine.results(game.state) if game.status == "finished" and game.state else None,
-        settings=game.settings or {},
+        settings=_public_settings(game),
         phase_deadline=await phase_deadline(game),
         call_room_id=game.call_room_id if call_live else None,
         call_live=call_live,

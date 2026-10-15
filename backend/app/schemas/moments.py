@@ -6,7 +6,7 @@ from typing import Literal
 
 from app.schemas.common import ApiModel, UserSummary
 
-MomentKind = Literal["game_finished", "room_hangout", "streak_milestone", "level_up", "friend_made"]
+MomentKind = Literal["game_finished", "room_hangout", "streak_milestone", "level_up", "friend_made", "friendship_milestone"]
 
 
 class MomentOut(ApiModel):

@@ -3,13 +3,13 @@ import { router } from 'expo-router';
 import { ArrowLeft, Dices, Hand, Home, Mic, Phone, Sparkles, Video } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { sendTextRequest, startCallWithFormat, waveRequest, type CallFormat } from '@/api/connect-extra';
+import { startCallWithFormat, waveRequest, type CallFormat } from '@/api/connect-extra';
 import { GAME_META, type GameType } from '@/api/games-extra';
+import { inviteToGame } from '@/api/invites-extra';
 import { qk, useMe } from '@/api/hooks';
 import type { Conversation, GameView, RoomDetail, UserSummary } from '@/api/types';
 import { Button, IconButton, ListGroup, ListRow, Sheet } from '@/components/ui';
 import { errorMessage, post } from '@/lib/api';
-import { clientId } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { toast } from '@/stores/toast';
 
@@ -69,17 +69,15 @@ export function HangOutSheet({ user, visible, onClose, inChat }: Props) {
       `game:${type}`,
       async () => {
         const game = await post<GameView>('/games', { game_type: type });
-        // There's no game invite yet, so share the join code in your chat.
+        // Send a real game invite (a notification for them); nothing is posted in your chat.
         try {
-          const conv = await conversation();
-          await sendTextRequest(conv.id, `Let's play ${GAME_META[type].name}! 🎲 Open Games → Join with code ${game.code}`, clientId());
-          qc.invalidateQueries({ queryKey: qk.conversations });
-        } catch {
-          toast.show({
-            title: `Share code ${game.code} with ${name}`,
-            message: "We couldn't send it in chat.",
-          });
+          const res = await inviteToGame(game.id, [user.id]);
+          if (res.invited.length) toast.success(`Invited ${name} to ${GAME_META[type].name}`);
+          else toast.show({ title: `${name} isn't taking game invites right now`, message: `Share code ${game.code} instead.` });
+        } catch (e) {
+          toast.show({ title: `Share code ${game.code} with ${name}`, message: errorMessage(e) });
         }
+        qc.invalidateQueries({ queryKey: qk.myGames });
         haptic.success();
         close();
         router.push(`/game/${game.id}`);

@@ -53,7 +53,7 @@ function describe(n: Notification, kudos: Record<string, string>): Meta {
     case 'room_starting':
       return { icon: CalendarClock, tone: 'accent', text: `${n.data?.title ? `"${n.data.title}"` : 'A hangout you saved'} is starting now` };
     case 'game_invite':
-      return { icon: Gamepad2, tone: 'primary', text: `${who} invited you to play${n.data?.game_type ? ` ${n.data.game_type}` : ''}` };
+      return { icon: Gamepad2, tone: 'primary', text: `${who} invited you to play${n.data?.game_name ? ` ${n.data.game_name}` : n.data?.game_type ? ` ${n.data.game_type}` : ''}` };
     case 'kudos': {
       // Kudos are anonymous: never show who sent them.
       const label = n.data?.tag ? kudos[n.data.tag] ?? n.data.tag : null;
@@ -79,6 +79,13 @@ function describe(n: Notification, kudos: Record<string, string>): Meta {
       return { icon: Mail, tone: 'accent', text: n.data?.message ? String(n.data.message) : 'A letter from your pen pal just arrived ✉️' };
     case 'pen_pal_friends':
       return { icon: PartyPopper, tone: 'success', text: 'You and your pen pal are friends now 🎉' };
+    case 'milestone':
+      return {
+        icon: PartyPopper,
+        tone: 'success',
+        text: n.data?.message ? String(n.data.message) : `You and ${n.actor?.display_name ?? 'a friend'} hit a friendship milestone 🎉`,
+        detail: n.data?.cta === 'hang_out' ? 'Celebrate with a call or a game. Tap to hang out.' : undefined,
+      };
     case 'icebreaker_connected':
       return { icon: PartyPopper, tone: 'success', text: `You and ${n.actor?.display_name ?? 'your Icebreaker match'} are friends now` };
     case 'moderation_warning':

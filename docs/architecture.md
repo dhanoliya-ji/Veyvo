@@ -42,6 +42,15 @@
   - **Slow Letters:** pen pals are matched by coarse UTC offset. Letter delay grows with the time-zone gap, and you can become friends after 3 letters each.
   - **Periodic jobs** (`services/scheduler.py`): letter-arrival notices, squad-night reminders and streaks. They run idempotently on every instance.
 - **Voice notes.** `POST /conversations/{id}/voice` checks the real audio type from the file bytes, limits notes to 60 s / 2 MB, and stores them privately under `voice/`. They're served by signed URL and deleted with the message or the account. A reported voice note is copied to evidence so moderators can listen.
+- **Text safety** (`core/textfilter.py`, terms in `content/blocked_terms.py`).
+  - Slurs, hate, threats ("kys") and sexual solicitation are rejected everywhere people write. The filter normalises leetspeak, stretched and spaced-out letters, and matches whole words to avoid false positives.
+  - Links, emails, phone numbers and off-platform handles are also rejected wherever strangers can read the text: profiles, prompts, rooms, communities, letters, swipe notes, squad names. Friends-only chats skip that check.
+  - Reports are never filtered.
+- **Game invites, milestones, sparks.**
+  - **Game invites:** `POST /games/{id}/invite` lets a player invite up to 8 friends to a game lobby. It sends a notification and a `game.invite` event, and invited people may enter games tied to private rooms.
+  - **Milestones** (`services/milestones.py`): friendship level-ups, anniversaries (1 week / 1 month / 6 months / 1 year, via the scheduler) and games played together (10/25/50). Each fires exactly once, deduplicated with a Moment key.
+  - **Spark** (`GET /conversations/{id}/spark`): suggests an editable opener when a chat has been quiet for 24h, built from the other person's prompts, shared interests, recent games or an anniversary. It never sends anything itself.
+- **Squad, game and call rooms** refuse to let someone join while a person they've blocked (or who blocked them) is inside.
 - **Regulars.** Rooms can repeat weekly: when one ends, the next is scheduled 7 days later. Room cards show how many "regulars" (people you've been in 2+ rooms with) are inside.
 - **Migrations.** Alembic in `migrations/`, from `0001` (initial schema) to `0007` (swipe, squads, letters, voice notes, game calls).
 

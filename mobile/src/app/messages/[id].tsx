@@ -12,6 +12,7 @@ import { patchCachedMessage, useClearConversation } from '@/api/social-extra';
 import { CallButton } from '@/components/CallButton';
 import { HangOutSheet } from '@/components/HangOutSheet';
 import { ReplyChip, ReplyContextPreview } from '@/components/chat/ReplyContext';
+import { SparkChip } from '@/components/chat/SparkChip';
 import { VoiceBubble } from '@/components/chat/VoiceBubble';
 import { RecordingBar, VoiceRecordButton, type RecordingState } from '@/components/chat/VoiceRecordButton';
 import { UserPhoto } from '@/components/UserPhoto';
@@ -196,6 +197,20 @@ export default function Chat() {
         qc.invalidateQueries({ queryKey: qk.conversations });
       } catch (e) {
         haptic.error();
+        if (e instanceof ApiError && e.code === 'text_not_allowed') {
+          // Retrying won't help: drop the bubble and give the words back so they can be edited.
+          setOutbox((o) => {
+            const next = { ...o };
+            delete next[cid];
+            return next;
+          });
+          qc.setQueryData<InfiniteData<Page<LocalMessage>>>(qk.messages(id), (data) =>
+            data ? { ...data, pages: data.pages.map((p) => ({ ...p, items: p.items.filter((x) => !(isLocal(x) && x.client_id === cid)) })) } : data,
+          );
+          setText((t) => t || local.content);
+          toast.error('Message not sent', errorMessage(e));
+          return;
+        }
         patchCachedMessage(qc, id, local.sender_id, cid, { pending: false, failed: true });
         setOutbox((o) => ({ ...o, [cid]: { ...local, pending: false, failed: true } }));
         if (e instanceof ApiError && (e.status === 403 || e.status === 422)) {
@@ -323,6 +338,7 @@ export default function Chat() {
         ) : (
           <View style={{ gap: space.xs }}>
             {reply ? <ReplyChip context={reply} otherName={name} onDismiss={() => setReply(null)} /> : null}
+            <SparkChip conversationId={id} lastMessageAt={messages.data?.pages[0]?.items[0]?.created_at ?? null} hidden={!!reply || !!text || !messages.data} onUse={onChangeText} />
             <Composer
               value={text}
               onChange={onChangeText}

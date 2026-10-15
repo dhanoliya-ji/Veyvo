@@ -23,6 +23,7 @@ from app.content.prompts import MAX_ANSWER_LENGTH, PROMPTS
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
 from app.core.store import get_store
+from app.core.textfilter import check_text
 from app.models import (
     Conversation,
     FriendRequest,
@@ -76,6 +77,8 @@ def prompt_catalogue() -> list[PromptOut]:
 
 
 async def set_prompts(db: AsyncSession, user: User, body: PromptsUpdate) -> MeOut:
+    for p in body.prompts:
+        check_text(p.answer, allow_contact=False)
     user.profile.prompts = [{"key": p.key, "answer": p.answer[:MAX_ANSWER_LENGTH]} for p in body.prompts]
     await db.commit()
     return await build_me(db, user)
@@ -337,6 +340,8 @@ async def _comment_context(db: AsyncSession, target: Profile, privacy: PrivacySe
 async def swipe(db: AsyncSession, viewer: User, body: SwipeIn) -> SwipeOut:
     if body.target_id == viewer.id:
         raise AppError("That's you!", code="invalid_target")
+    if body.decision == "like":
+        check_text(body.comment, allow_contact=False)  # the note may reach a stranger
     limit = daily_limit(viewer)
     if await decisions_today(db, viewer.id) >= limit:
         raise Forbidden(

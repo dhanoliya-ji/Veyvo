@@ -85,6 +85,17 @@ export default function SquadChat() {
         qc.invalidateQueries({ queryKey: squadKeys.all });
       } catch (e) {
         haptic.error();
+        if (e instanceof ApiError && e.code === 'text_not_allowed') {
+          // Retrying won't help: drop the bubble and give the words back so they can be edited.
+          setOutbox((o) => {
+            const next = { ...o };
+            delete next[cid];
+            return next;
+          });
+          setText((t) => t || local.content);
+          toast.error('Message not sent', errorMessage(e));
+          return;
+        }
         setOutbox((o) => ({ ...o, [cid]: { ...local, pending: false, failed: true } }));
         if (e instanceof ApiError && (e.status === 404 || e.status === 422)) toast.error('Message not sent', errorMessage(e));
       }

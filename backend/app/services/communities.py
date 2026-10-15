@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
+from app.core.textfilter import check_text
 from app.models import Community, CommunityMember, CommunityPoints, CommunityPost, Interest, Room, User, UserInterest
 from app.schemas.common import like_pattern
 from app.schemas.moments import LeaderboardEntry, LeaderboardOut
@@ -255,6 +256,8 @@ async def recommended(db: AsyncSession, user: User, limit: int = 8) -> list[Comm
 
 
 async def create(db: AsyncSession, user: User, data: CommunityIn) -> Community:
+    for text in (data.name, data.description, *data.rules):
+        check_text(text, allow_contact=False)
     if data.interest_id is not None and await db.get(Interest, data.interest_id) is None:
         raise AppError("Unknown topic.", code="invalid_interest", status_code=422)
     community = Community(
@@ -394,6 +397,7 @@ async def create_post(db: AsyncSession, user: User, community: Community, conten
         raise Forbidden("Join the community to post.", code="not_community_member")
     if community.status != "active":
         raise Forbidden("Posting is paused in this community.", code="community_restricted")
+    check_text(content, allow_contact=False)
     await award_post(db, community.id, user.id)
     post = CommunityPost(community_id=community.id, author_id=user.id, content=content)
     db.add(post)

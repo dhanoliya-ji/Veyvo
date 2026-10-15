@@ -22,6 +22,7 @@ LIMITS: dict[str, tuple[int, int]] = {
     "community_create": (5, 86400),
     "game_create": (20, 3600),
     "game_action": (120, 60),
+    "game_invite": (30, 3600),
     "swipe": (120, 600),
     "wave": (30, 3600),
     "voice_upload": (60, 3600),

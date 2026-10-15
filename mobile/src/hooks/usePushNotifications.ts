@@ -101,6 +101,9 @@ export async function disablePushNotifications() {
 function routeFor(data: Record<string, any> | undefined) {
   if (!data) return;
   const id = data.entity_id as string | undefined;
+  // Game invites open the game lobby; friendship milestones open the friend's profile (with Hang out).
+  if (data.type === 'game_invite') return id && router.push(`/game/${id}`);
+  if (data.type === 'milestone') return id && router.push(`/user/${id}`);
   switch (data.entity_type) {
     case 'conversation':
       return id && router.push(`/messages/${id}`);

@@ -11,11 +11,13 @@ import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, In
 import { useMe } from '@/api/hooks';
 import { IncomingCall } from '@/components/IncomingCall';
 import { MatchModalHost } from '@/components/discover/MatchModal';
+import { GameInviteBanner } from '@/components/games/GameInviteBanner';
 import { PresenceNudges } from '@/components/presence/PresenceNudge';
 import { AccountBlockedOverlay } from '@/components/safety/AccountBlockedOverlay';
 import { ReportHost } from '@/components/safety/ReportSheet';
 import { ConfirmHost, OfflineBanner, Toaster } from '@/components/ui';
 import { useDiscoverRealtime } from '@/hooks/useDiscoverRealtime';
+import { useGameInvites } from '@/hooks/useGameInvites';
 import { usePresenceRealtime } from '@/hooks/usePresenceRealtime';
 import { useNotificationRouting } from '@/hooks/usePushNotifications';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
@@ -68,6 +70,7 @@ function AuthGate() {
   usePresenceRealtime(status === 'signedIn' && !!me.data?.onboarded);
   useDiscoverRealtime(status === 'signedIn' && !!me.data?.onboarded);
   useSquadsRealtime(status === 'signedIn' && !!me.data?.onboarded);
+  useGameInvites(status === 'signedIn' && !!me.data?.onboarded);
   return null;
 }
 
@@ -93,6 +96,7 @@ function Shell() {
       <IncomingCall />
       <PresenceNudges />
       <MatchModalHost />
+      <GameInviteBanner />
     </>
   );
 }

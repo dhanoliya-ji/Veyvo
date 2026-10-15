@@ -160,6 +160,11 @@ async def add_friendship_points(db: AsyncSession, a: uuid.UUID, b: uuid.UUID, po
         friendship.points_today = 0
     allowed = max(0, FRIENDSHIP_DAILY_CAP - friendship.points_today)
     gained = min(points, allowed)
+    before = friendship.points
     friendship.points += gained
     friendship.points_today += gained
     friendship.last_interaction_at = utcnow()
+    if gained:
+        from app.services import milestones  # local import: milestones sends notifications
+
+        await milestones.friendship_points_changed(db, friendship, before)
