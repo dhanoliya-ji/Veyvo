@@ -35,10 +35,10 @@ export function KudosSheet({ visible, onClose, people }: { visible: boolean; onC
         onError: (e) => {
           if (isApiError(e, 409)) {
             setGiven((g) => ({ ...g, [selected.id]: 'already' }));
-            toast.show({ title: 'Already given today', message: `You've already sent ${selected.display_name} kudos today. Try again tomorrow.` });
+            toast.show({ title: 'Already given today', message: `You've already sent ${selected.display_name} a vibe today. Try again tomorrow.` });
           } else {
             haptic.error();
-            toast.error("Couldn't send kudos", errorMessage(e));
+            toast.error("Couldn't send that vibe", errorMessage(e));
           }
         },
       },
@@ -46,7 +46,7 @@ export function KudosSheet({ visible, onClose, people }: { visible: boolean; onC
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Give kudos" scroll>
+    <Sheet visible={visible} onClose={onClose} title="Send a vibe" scroll>
       <Text tone="muted" style={{ marginBottom: space.md }}>
         Kudos are anonymous little thank-yous. They show up as counts on profiles.
       </Text>

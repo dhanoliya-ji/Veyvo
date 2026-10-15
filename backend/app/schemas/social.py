@@ -17,11 +17,35 @@ class MessageOut(ApiModel):
     client_id: str
     content: str
     created_at: datetime
+    kind: Literal["text", "voice"] = "text"
+    # Voice notes: a short-lived signed URL (None once deleted) and the length in milliseconds.
+    media_url: str | None = None
+    duration_ms: int | None = None
+    # Reply context: {type: "photo"|"prompt", photo_id?, photo_url?, prompt_key?, prompt?, text?}
+    context: dict | None = None
+
+
+class MessageContextIn(ApiModel):
+    """What a message replies to: one of the other person's photos or profile prompts."""
+
+    type: Literal["photo", "prompt"]
+    photo_id: uuid.UUID | None = None
+    prompt_key: str | None = Field(default=None, max_length=60, pattern=r"^[a-z0-9_]+$")
+    text: SingleLine | None = Field(default=None, max_length=150)
+
+    @model_validator(mode="after")
+    def _shape(self) -> "MessageContextIn":
+        if self.type == "photo" and self.photo_id is None:
+            raise ValueError("Choose the photo you're replying to.")
+        if self.type == "prompt" and not self.prompt_key:
+            raise ValueError("Choose the prompt you're replying to.")
+        return self
 
 
 class MessageIn(ApiModel):
     content: CleanText = Field(min_length=1)
     client_id: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    context: MessageContextIn | None = None
 
     @field_validator("content")
     @classmethod
@@ -46,6 +70,24 @@ class ConversationOut(ApiModel):
 
 class StartConversationIn(ApiModel):
     user_id: uuid.UUID
+
+
+# ---------- Connect (waves, free to talk) ----------
+class WaveOut(ApiModel):
+    matched: bool
+
+
+class FreeIn(ApiModel):
+    minutes: Literal[0, 15, 30, 60, 120]
+
+
+class FreeOut(ApiModel):
+    free_until: datetime | None
+
+
+class FreeFriendOut(UserSummary):
+    free_until: datetime
+    online: bool | None = None
 
 
 # ---------- Communities ----------
@@ -119,6 +161,9 @@ class RoomOut(ApiModel):
     participant_count: int
     participants_preview: list[UserSummary]
     friends_inside: int = 0
+    # Regulars: people here now who've been in at least 2 earlier rooms with the viewer.
+    regulars_inside: int = 0
+    repeat_weekly: bool = False
     scheduled_for: datetime | None
     started_at: datetime | None
     created_at: datetime
@@ -138,6 +183,8 @@ class RoomIn(ApiModel):
     capacity: int = Field(default=12, ge=2)
     open_mic: bool = True
     scheduled_for: datetime | None = None
+    # Regulars: when this room ends, the next one is scheduled for the same time next week.
+    repeat_weekly: bool = False
     focus_minutes: int = Field(default=25, ge=5, le=90)
     break_minutes: int = Field(default=5, ge=1, le=30)
 
@@ -257,7 +304,7 @@ class PushTokenIn(ApiModel):
 
 # ---------- Safety ----------
 class ReportIn(ApiModel):
-    target_type: Literal["user", "room", "community", "message", "room_message", "community_post", "photo"]
+    target_type: Literal["user", "room", "community", "message", "room_message", "community_post", "photo", "squad_message", "letter"]
     target_id: str = Field(min_length=1, max_length=64)
     reason: str
     description: CleanText = Field(default="", max_length=1000)

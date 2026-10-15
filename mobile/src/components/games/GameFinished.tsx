@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { router } from 'expo-router';
-import { ArrowLeft, Gem, Heart, RotateCcw, Share2, Trophy } from 'lucide-react-native';
+import { ArrowLeft, Gem, RotateCcw, Share2, Trophy } from 'lucide-react-native';
 
 import { endReason, GAME_REWARDS, scoreLabel } from '@/api/games-extra';
 import { qk, useCreateGame } from '@/api/hooks';
@@ -16,7 +16,7 @@ import { space } from '@/theme/tokens';
 import { Confetti } from './Confetti';
 import { GameBoard } from './GameBoard';
 import { playerOf, type GameCtx } from './GameParts';
-import { KudosSheet } from './KudosSheet';
+import { MakeFriendsPanel } from './MakeFriendsPanel';
 import { Podium, Scoreboard, type RankedEntry } from './Scoreboard';
 
 export function GameFinished({ ctx, onBack }: { ctx: GameCtx; onBack: () => void }) {
@@ -24,7 +24,6 @@ export function GameFinished({ ctx, onBack }: { ctx: GameCtx; onBack: () => void
   const { game, meId } = ctx;
   const qc = useQueryClient();
   const create = useCreateGame();
-  const [kudosOpen, setKudosOpen] = useState(false);
   const [burst, setBurst] = useState<number | null>(null);
 
   const entries = useMemo<RankedEntry[]>(
@@ -122,10 +121,11 @@ export function GameFinished({ ctx, onBack }: { ctx: GameCtx; onBack: () => void
         <Scoreboard entries={entries} meId={meId} hostId={game.host_id} />
       </View>
 
+      {wasPlayer ? <MakeFriendsPanel people={others} /> : null}
+
       <View style={{ gap: space.sm }}>
         <Button title="Play again" icon={RotateCcw} size="lg" onPress={playAgain} loading={create.isPending} fullWidth accessibilityHint="Starts a new game of the same kind that you host" />
         {wasPlayer ? <Button title="Share your moment" icon={Share2} variant="secondary" size="lg" onPress={() => router.push('/moments')} fullWidth /> : null}
-        {others.length && wasPlayer ? <Button title="Give kudos" icon={Heart} variant="secondary" size="lg" onPress={() => setKudosOpen(true)} fullWidth /> : null}
         <Button title={game.room_id ? 'Back to the hangout' : 'Back to Games'} icon={ArrowLeft} variant="ghost" onPress={onBack} fullWidth />
       </View>
 
@@ -136,7 +136,6 @@ export function GameFinished({ ctx, onBack }: { ctx: GameCtx; onBack: () => void
         </View>
       ) : null}
 
-      <KudosSheet visible={kudosOpen} onClose={() => setKudosOpen(false)} people={others} />
       <Confetti burstKey={burst} count={30} originY={0.15} />
     </View>
   );

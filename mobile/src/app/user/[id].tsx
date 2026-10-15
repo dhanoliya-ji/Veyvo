@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { Image } from 'expo-image';
 import {
   Award,
   Ban,
@@ -11,6 +12,7 @@ import {
   Heart,
   Lock,
   MessageCircle,
+  MessageSquareReply,
   MoreHorizontal,
   PencilLine,
   ShieldOff,
@@ -23,8 +25,11 @@ import {
 
 import { qk, useBlock, useGiveKudos, useProfile, useRemoveFriend, useRespondRequest, useSendFriendRequest, useStartConversation } from '@/api/hooks';
 import type { PublicProfile } from '@/api/types';
-import { KUDOS_EMOJI, useKudosLabels } from '@/api/social-extra';
+import type { ReplyParams } from '@/api/discover-extra';
+import { useKudosLabels } from '@/api/social-extra';
+import { VIBE_EMOJI } from '@/api/connect-extra';
 import { CallButton } from '@/components/CallButton';
+import { HangOutButton } from '@/components/HangOutSheet';
 import { PhotoGallery } from '@/components/photos/PhotoGallery';
 import { UserPhoto } from '@/components/UserPhoto';
 import { openReport } from '@/components/safety/ReportSheet';
@@ -152,7 +157,7 @@ function ProfileBody({ p, onKudos }: { p: PublicProfile; onKudos: () => void }) 
         <View style={[styles.stats, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Stat icon={Users} value={String(p.mutual_friends)} label={p.mutual_friends === 1 ? 'mutual friend' : 'mutual friends'} />
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          <Stat icon={Award} value={p.limited ? '–' : String(kudosTotal)} label="kudos" />
+          <Stat icon={Award} value={p.limited ? '–' : String(kudosTotal)} label="vibes" />
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <Stat icon={Heart} value={String(p.shared_interest_ids.length)} label="in common" />
         </View>
@@ -166,7 +171,7 @@ function ProfileBody({ p, onKudos }: { p: PublicProfile; onKudos: () => void }) 
           <View style={{ flex: 1, gap: 2 }}>
             <Text variant="bodyStrong">Friends-only profile</Text>
             <Text variant="caption" tone="muted">
-              {p.display_name} shares their bio, interests and kudos with friends only.
+              {p.display_name} shares their bio, interests and vibes with friends only.
             </Text>
           </View>
         </Card>
@@ -197,6 +202,10 @@ function ProfileBody({ p, onKudos }: { p: PublicProfile; onKudos: () => void }) 
         </View>
       ) : null}
 
+      {!p.limited && p.prompts?.length ? <PromptsSection p={p} /> : null}
+
+      {isFriend && p.can_message && p.photos?.length ? <PhotoReplies p={p} /> : null}
+
       {interests.length ? (
         <View>
           <SectionHeader title="Interests" subtitle={p.shared_interest_ids.length && p.relationship !== 'self' ? `You share ${plural(p.shared_interest_ids.length, 'interest')}` : undefined} />
@@ -210,7 +219,7 @@ function ProfileBody({ p, onKudos }: { p: PublicProfile; onKudos: () => void }) 
 
       {!p.limited && kudosEntries.length ? (
         <View>
-          <SectionHeader title="Kudos" subtitle={kudosTotal ? 'Given anonymously by people they hung out with' : 'No kudos yet'} />
+          <SectionHeader title="Vibes" subtitle={kudosTotal ? 'Sent by people they hung out with' : 'No vibes yet'} />
           <View style={styles.kudosGrid}>
             {kudosEntries.map(([tag, count]) => (
               <View
@@ -219,7 +228,7 @@ function ProfileBody({ p, onKudos }: { p: PublicProfile; onKudos: () => void }) 
                 accessible
                 accessibilityLabel={`${labels[tag]}: ${count}`}
               >
-                <Text style={{ fontSize: 22 }}>{KUDOS_EMOJI[tag] ?? '✨'}</Text>
+                <Text style={{ fontSize: 22 }}>{VIBE_EMOJI[tag] ?? '✨'}</Text>
                 <View style={{ flex: 1 }}>
                   <Text variant="label" numberOfLines={1}>
                     {labels[tag]}
@@ -234,6 +243,86 @@ function ProfileBody({ p, onKudos }: { p: PublicProfile; onKudos: () => void }) 
         </View>
       ) : null}
     </Animated.View>
+  );
+}
+
+// ---------- Prompts and replies ----------
+/** Open the chat with a friend, passing what the reply is about. The chat screen reads these params. */
+function useReplyInChat(p: PublicProfile) {
+  const start = useStartConversation();
+  const reply = async (params: ReplyParams) => {
+    try {
+      const conv = await start.mutateAsync(p.id);
+      queryClient.setQueryData(qk.conversation(conv.id), conv);
+      router.push({ pathname: '/messages/[id]', params: { id: conv.id, ...params } });
+    } catch (e) {
+      toast.error("Couldn't open chat", errorMessage(e));
+    }
+  };
+  return { reply, busy: start.isPending };
+}
+
+function PromptsSection({ p }: { p: PublicProfile }) {
+  const { colors } = useTheme();
+  const canReply = p.relationship === 'friends' && p.can_message;
+  const { reply, busy } = useReplyInChat(p);
+  return (
+    <View>
+      <SectionHeader title="Prompts" subtitle={p.relationship === 'self' ? 'Edit them in Profile prompts' : undefined} action={p.relationship === 'self' ? 'Edit' : undefined} onAction={() => router.push('/prompts' as Href)} />
+      <View style={{ gap: space.sm }}>
+        {(p.prompts ?? []).map((q) => (
+          <View key={q.key} style={[styles.prompt, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text variant="caption" tone="muted">
+              {q.text}
+            </Text>
+            <Text variant="subheading">{q.answer}</Text>
+            {canReply ? (
+              <PressableScale
+                onPress={() => reply({ replyType: 'prompt', replyPromptKey: q.key, replyText: `${q.text} ${q.answer}` })}
+                disabled={busy}
+                hitSlop={8}
+                accessibilityLabel={`Reply to "${q.text}"`}
+                style={styles.replyPill}
+              >
+                <MessageSquareReply size={14} color={colors.primary} />
+                <Text variant="label" tone="primary">
+                  Reply
+                </Text>
+              </PressableScale>
+            ) : null}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function PhotoReplies({ p }: { p: PublicProfile }) {
+  const { colors } = useTheme();
+  const { reply, busy } = useReplyInChat(p);
+  return (
+    <View>
+      <SectionHeader title="Reply to a photo" subtitle="Your message will show which photo it's about." />
+      <View style={styles.wrap}>
+        {(p.photos ?? []).map((photo, i) => (
+          <PressableScale
+            key={photo.id}
+            onPress={() => reply({ replyType: 'photo', replyPhotoId: photo.id })}
+            disabled={busy}
+            accessibilityLabel={`Reply to ${p.display_name}'s photo ${i + 1}`}
+            style={[styles.photoReply, { backgroundColor: colors.surfaceAlt }]}
+          >
+            {photo.url ? <Image source={{ uri: photo.url }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" /> : null}
+            <View style={styles.photoReplyBadge}>
+              <MessageSquareReply size={12} color="#fff" />
+              <Text variant="tiny" style={{ color: '#fff' }}>
+                Reply
+              </Text>
+            </View>
+          </PressableScale>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -311,8 +400,9 @@ function Actions({ p, onKudos }: { p: PublicProfile; onKudos: () => void }) {
               <Button title="Message" icon={MessageCircle} onPress={message} loading={start.isPending} style={{ flex: 1 }} />
             ) : null}
             {p.can_message ? <CallButton userId={p.id} name={p.display_name} /> : null}
+            {p.can_message ? <HangOutButton user={p} compact /> : null}
           </View>
-          <Button title="Give kudos" icon={Award} variant="ghost" onPress={onKudos} />
+          <Button title="Send a vibe" icon={Award} variant="ghost" onPress={onKudos} />
           {!p.can_message ? (
             <Text variant="caption" tone="muted" center>
               Messaging is turned off for one of you, so chat isn't available.
@@ -409,7 +499,7 @@ function OverflowMenu({ p, visible, onClose, onKudos }: { p: PublicProfile; visi
   return (
     <Sheet visible={visible} onClose={onClose} title={p.display_name}>
       <ListGroup>
-        {!blocked && p.relationship !== 'friends' ? <ListRow icon={Award} iconTone="primary" title="Give kudos" subtitle="For people you've hung out or played with" onPress={run(onKudos)} /> : null}
+        {!blocked && p.relationship !== 'friends' ? <ListRow icon={Award} iconTone="primary" title="Send a vibe" subtitle="For people you've hung out or played with" onPress={run(onKudos)} /> : null}
         {p.relationship === 'friends' ? <ListRow icon={UserMinus} title="Remove friend" onPress={run(removeFriend)} /> : null}
         <ListRow
           icon={Flag}
@@ -436,18 +526,18 @@ function KudosSheet({ p, visible, onClose }: { p: PublicProfile; visible: boolea
     try {
       await give.mutateAsync({ userId: p.id, tag });
       haptic.success();
-      toast.success('Kudos sent', `${p.display_name} won't see who it's from.`);
+      toast.success('Vibe sent ✨', p.relationship === 'friends' ? `${p.display_name} will see it's from you.` : `${p.display_name} won't see who it's from.`);
       onClose();
     } catch (e) {
       haptic.warning();
       if (e instanceof ApiError && e.status === 409) {
-        toast.show({ title: 'Already sent today', message: `You can give ${p.display_name} kudos again tomorrow.`, tone: 'info' });
+        toast.show({ title: 'Already sent today', message: `You can send ${p.display_name} another vibe tomorrow.`, tone: 'info' });
         onClose();
       } else if (e instanceof ApiError && e.status === 403) {
-        toast.show({ title: 'Not yet', message: "Kudos are for people you've hung out or played with. Join a hangout together first.", tone: 'info' });
+        toast.show({ title: 'Not yet', message: "Vibes are for people you've hung out or played with. Join a hangout together first.", tone: 'info' });
         onClose();
       } else {
-        toast.error("Couldn't send kudos", errorMessage(e));
+        toast.error("Couldn't send that vibe", errorMessage(e));
       }
     } finally {
       setPicked(null);
@@ -455,9 +545,9 @@ function KudosSheet({ p, visible, onClose }: { p: PublicProfile; visible: boolea
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} title={`Give ${p.display_name} kudos`}>
+    <Sheet visible={visible} onClose={onClose} title={`Send ${p.display_name} a vibe`}>
       <Text tone="muted" style={{ marginBottom: space.lg }}>
-        Say what made hanging out great. Kudos are anonymous — one per person per day.
+        Say what made hanging out great. Friends see it's from you; everyone else gets it anonymously. One a day.
       </Text>
       <View style={styles.kudosGrid}>
         {Object.entries(labels).map(([tag, label]) => (
@@ -466,10 +556,10 @@ function KudosSheet({ p, visible, onClose }: { p: PublicProfile; visible: boolea
             onPress={() => submit(tag)}
             disabled={give.isPending}
             hapticFeedback="tap"
-            accessibilityLabel={`Give kudos: ${label}`}
+            accessibilityLabel={`Send a vibe: ${label}`}
             style={[styles.kudoPick, { backgroundColor: picked === tag ? colors.primarySoft : colors.surfaceAlt, borderColor: picked === tag ? colors.primary : 'transparent' }]}
           >
-            <Text style={{ fontSize: 26 }}>{KUDOS_EMOJI[tag] ?? '✨'}</Text>
+            <Text style={{ fontSize: 26 }}>{VIBE_EMOJI[tag] ?? '✨'}</Text>
             <Text variant="label" center numberOfLines={1}>
               {label}
             </Text>
@@ -493,5 +583,9 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   kudosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   kudo: { flexDirection: 'row', alignItems: 'center', gap: space.sm, width: '48.5%', padding: space.md, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth },
+  prompt: { padding: space.lg, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, gap: space.xs },
+  replyPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: space.xs },
+  photoReply: { width: 72, height: 90, borderRadius: radius.md, overflow: 'hidden', justifyContent: 'flex-end' },
+  photoReplyBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 4, backgroundColor: 'rgba(10,10,18,0.55)' },
   kudoPick: { width: '31.5%', minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: space.xs, padding: space.sm, borderRadius: radius.lg, borderWidth: 1.5 },
 });

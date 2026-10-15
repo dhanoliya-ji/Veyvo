@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -10,12 +10,15 @@ import {
   Flame,
   Gamepad2,
   Gem,
+  Heart,
+  Mail,
   MessageCircle,
   Search,
   Sparkles,
   Tent,
   Trophy,
   UserPlus,
+  UsersRound,
   type LucideProps,
 } from 'lucide-react-native';
 
@@ -23,6 +26,9 @@ import { useAnswerDaily, useClaimQuest, useHome, useMe } from '@/api/hooks';
 import type { DailyQuestion, Quest } from '@/api/types';
 import { UserPhoto } from '@/components/UserPhoto';
 import { CommunityCard, RoomCard } from '@/components/cards';
+import { DailyDropBanner } from '@/components/discover/DailyDropBanner';
+import { FreeFriendsStrip } from '@/components/presence/FreeFriendsStrip';
+import { FreeToTalk } from '@/components/presence/FreeToTalk';
 import { EventBanner } from '@/components/moments/EventBanner';
 import { useTabBarInset } from '@/components/TabBar';
 import { Button, Card, EmptyState, ErrorState, IconButton, PressableScale, ProgressBar, RoomCardSkeleton, SectionHeader, Skeleton, Text } from '@/components/ui';
@@ -256,16 +262,24 @@ export default function Home() {
             </PressableScale>
           ) : null}
 
+          <FreeToTalk />
+
+          <FreeFriendsStrip />
+
+          <DailyDropBanner />
+
           <EventBanner />
 
           {/* Quick actions */}
           <Animated.View entering={FadeInDown.duration(350)}>
             <SectionHeader title="Find your next hangout" />
             <View style={styles.grid}>
+              <QuickTile icon={Heart} title="Friend Swipe" subtitle="Meet people who share your vibe" tint={colors.accent} onPress={() => router.push('/discover' as Href)} />
               <QuickTile icon={Tent} title="Join a room" subtitle="Drop into a live hangout" tint={colors.primary} onPress={() => router.push('/hangouts')} />
-              <QuickTile icon={Sparkles} title="Icebreaker" subtitle="Meet someone who shares an interest" tint={colors.accent} onPress={() => router.push('/games/icebreaker')} />
-              <QuickTile icon={Gamepad2} title="Quick game" subtitle="Chess, Ludo, cards and more" tint={colors.success} onPress={() => router.push('/games')} />
-              <QuickTile icon={Search} title="Explore" subtitle="Find people and communities" tint={colors.warning} onPress={() => router.push('/explore')} />
+              <QuickTile icon={Gamepad2} title="Quick game" subtitle="Play with voice and video" tint={colors.success} onPress={() => router.push('/games')} />
+              <QuickTile icon={UsersRound} title="Squads" subtitle="Your small friend groups" tint={colors.primary} onPress={() => router.push('/squads' as Href)} />
+              <QuickTile icon={Mail} title="Slow Letters" subtitle="Pen pals around the world" tint={colors.warning} onPress={() => router.push('/letters' as Href)} />
+              <QuickTile icon={Sparkles} title="Icebreaker" subtitle="A quick chat on a shared interest" tint={colors.accent} onPress={() => router.push('/games/icebreaker')} />
             </View>
           </Animated.View>
 

@@ -18,15 +18,21 @@ from app.models import (
     Friendship,
     GemTransaction,
     Kudos,
+    Letter,
     Message,
     Moment,
     Notification,
     OneTimeCode,
     OwnedItem,
+    PenPal,
     QuestProgress,
     Report,
     Room,
     RoomMessage,
+    Squad,
+    SquadMember,
+    SquadMessage,
+    SwipeDecision,
     User,
 )
 from app.services.photos import my_photos
@@ -74,6 +80,23 @@ async def delete_account(db: AsyncSession, user: User, password: str) -> None:
         if successor:
             successor.role = "owner"
 
+    # Hand owned squads to the longest-standing member (empty squads are deleted).
+    for squad in await db.scalars(select(Squad).where(Squad.owner_id == user_id)):
+        successor = await db.scalar(
+            select(SquadMember).where(SquadMember.squad_id == squad.id, SquadMember.user_id != user_id).order_by(SquadMember.joined_at)
+        )
+        if successor:
+            squad.owner_id, successor.role = successor.user_id, "owner"
+        else:
+            await db.delete(squad)
+
+    # Voice note files the person sent (the message rows go with the account).
+    from app.core.storage import get_storage
+
+    storage = get_storage()
+    for key in await db.scalars(select(Message.media_key).where(Message.sender_id == user_id, Message.media_key.is_not(None))):
+        storage.delete(key)
+
     from app.services.photos import delete_all_media
 
     await delete_all_media(db, user_id)
@@ -95,6 +118,7 @@ async def export_data(db: AsyncSession, user: User) -> dict:
     )
     room_msgs = list(await db.scalars(select(RoomMessage).where(RoomMessage.sender_id == user.id).order_by(RoomMessage.created_at)))
     blocks = list(await db.scalars(select(Block).where(Block.blocker_id == user.id)))
+    swipes = list(await db.scalars(select(SwipeDecision).where(SwipeDecision.user_id == user.id)))
     blocked_people = await summaries(db, [b.blocked_id for b in blocks])
     return {
         "exported_at": utcnow().isoformat(),
@@ -117,6 +141,8 @@ async def export_data(db: AsyncSession, user: User) -> dict:
             "gems": p.gems,
             "streak_current": p.streak_current,
             "streak_best": p.streak_best,
+            "prompts": p.prompts or [],
+            "free_until": p.free_until.isoformat() if p.free_until else None,
         },
         "privacy_settings": {
             k: getattr(priv, k)
@@ -129,6 +155,10 @@ async def export_data(db: AsyncSession, user: User) -> dict:
                 "discoverable",
                 "show_interests",
                 "allow_icebreakers",
+                "photo_visibility",
+                "show_in_discover",
+                "discover_verified_only",
+                "allow_pen_pals",
                 "notification_previews",
                 "notification_prefs",
             )
@@ -139,14 +169,51 @@ async def export_data(db: AsyncSession, user: User) -> dict:
         "friends": [{"username": people[f].username, "display_name": people[f].display_name} for f in friend_ids],
         "blocked": [{"username": blocked_people[b.blocked_id].username} for b in blocks],
         "messages_sent": [
-            {"conversation_id": str(m.conversation_id), "content": m.content, "sent_at": m.created_at.isoformat()} for m in messages
+            {
+                "conversation_id": str(m.conversation_id),
+                "kind": m.kind,
+                "content": m.content,
+                "voice_note_seconds": round(m.duration_ms / 1000) if m.duration_ms else None,
+                "sent_at": m.created_at.isoformat(),
+            }
+            for m in messages
+        ],
+        "friend_swipe": {
+            "connect": [str(d.target_id) for d in swipes if d.decision == "like"],
+            "skipped_count": sum(1 for d in swipes if d.decision == "pass"),
+        },
+        "squads": [
+            {"name": sq.name, "emoji": sq.emoji, "role": role}
+            for sq, role in (
+                await db.execute(
+                    select(Squad, SquadMember.role)
+                    .join(SquadMember, SquadMember.squad_id == Squad.id)
+                    .where(SquadMember.user_id == user.id)
+                )
+            ).all()
+        ],
+        "squad_messages_sent": [
+            {"squad_id": str(m.squad_id), "content": m.content, "sent_at": m.created_at.isoformat()}
+            for m in await db.scalars(
+                select(SquadMessage)
+                .where(SquadMessage.sender_id == user.id, SquadMessage.removed_at.is_(None))
+                .order_by(SquadMessage.created_at)
+            )
+        ],
+        "letters_sent": [
+            {"pen_pal_id": str(lt.pen_pal_id), "content": lt.content, "sent_at": lt.sent_at.isoformat()}
+            for lt in await db.scalars(select(Letter).where(Letter.sender_id == user.id).order_by(Letter.sent_at))
+        ],
+        "pen_pals": [
+            {"id": str(pp.id), "status": pp.status, "since": pp.created_at.isoformat()}
+            for pp in await db.scalars(select(PenPal).where(or_(PenPal.user_a_id == user.id, PenPal.user_b_id == user.id)))
         ],
         "room_chat_sent": [{"room_id": str(m.room_id), "content": m.content, "sent_at": m.created_at.isoformat()} for m in room_msgs],
         "reports_filed": [
             {"target_type": r.target_type, "reason": r.reason, "status": r.status, "created_at": r.created_at.isoformat()}
             for r in await db.scalars(select(Report).where(Report.reporter_id == user.id))
         ],
-        "kudos_received": [
+        "vibes_received": [
             {"tag": k.tag, "day": k.day.isoformat()} for k in await db.scalars(select(Kudos).where(Kudos.receiver_id == user.id))
         ],
         "gem_history": [

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Device from 'expo-device';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 
 import { accountApi } from '@/api/hooks';
 
@@ -110,6 +110,12 @@ function routeFor(data: Record<string, any> | undefined) {
       return id && router.push(`/user/${id}`);
     case 'friend_request':
       return router.push('/friends');
+    case 'game':
+      return id && router.push(`/game/${id}`);
+    case 'squad':
+      return router.push((id ? `/squads/${id}` : '/squads') as Href);
+    case 'pen_pal':
+      return router.push((id ? `/letters/${id}` : '/letters') as Href);
     default:
       return router.push('/notifications');
   }

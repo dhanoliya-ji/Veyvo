@@ -10,11 +10,15 @@ import {
   CalendarClock,
   CheckCheck,
   Gamepad2,
+  Hand,
   Handshake,
+  Heart,
+  Mail,
   PartyPopper,
   ShieldCheck,
   Tent,
   UserPlus,
+  Users,
   type LucideProps,
 } from 'lucide-react-native';
 
@@ -56,9 +60,25 @@ function describe(n: Notification, kudos: Record<string, string>): Meta {
       return {
         icon: Award,
         tone: 'warning',
-        text: n.count > 1 ? `You got ${n.count} kudos from people you hung out with` : `Someone gave you kudos${label ? `: ${label}` : ''}`,
+        text: n.count > 1 ? `You got ${n.count} vibes from people you hung out with` : `Someone sent you a vibe${label ? `: ${label}` : ''}`,
       };
     }
+    case 'match':
+      return { icon: Heart, tone: 'success', text: `It's a match! You and ${n.actor?.display_name ?? 'someone new'} are friends now. Say hi!` };
+    case 'wave':
+      return { icon: Hand, tone: 'accent', text: `${who} waved at you 👋` };
+    case 'squad_added':
+      return { icon: Users, tone: 'primary', text: `${who} added you to ${n.data?.name ? `the squad "${n.data.name}"` : 'a squad'}` };
+    case 'squad_message':
+      return { icon: Users, tone: 'primary', text: `${who} wrote in ${n.data?.name ? `"${n.data.name}"` : 'your squad'}` };
+    case 'squad_night':
+      return { icon: Users, tone: 'warning', text: n.data?.message ? String(n.data.message) : 'Squad night starts in 15 minutes 🔥' };
+    case 'pen_pal_matched':
+      return { icon: Mail, tone: 'accent', text: 'You have a new pen pal. Write the first letter ✉️' };
+    case 'letter_arrived':
+      return { icon: Mail, tone: 'accent', text: n.data?.message ? String(n.data.message) : 'A letter from your pen pal just arrived ✉️' };
+    case 'pen_pal_friends':
+      return { icon: PartyPopper, tone: 'success', text: 'You and your pen pal are friends now 🎉' };
     case 'icebreaker_connected':
       return { icon: PartyPopper, tone: 'success', text: `You and ${n.actor?.display_name ?? 'your Icebreaker match'} are friends now` };
     case 'moderation_warning':
@@ -84,6 +104,10 @@ function routeFor(n: Notification): string | null {
       return '/friends?tab=requests';
     case 'conversation':
       return n.entity_id ? `/messages/${n.entity_id}` : null;
+    case 'squad':
+      return n.entity_id ? `/squads/${n.entity_id}` : '/squads';
+    case 'pen_pal':
+      return n.entity_id ? `/letters/${n.entity_id}` : '/letters';
     default:
       return n.actor ? `/user/${n.actor.id}` : null;
   }
@@ -148,7 +172,7 @@ export default function Notifications() {
       ) : notifications.isError ? (
         <ErrorState error={notifications.error} onRetry={() => notifications.refetch()} />
       ) : sections.length === 0 ? (
-        <EmptyState icon={BellOff} title="You're all caught up" message="Friend requests, invites and kudos will show up here." action="Explore hangouts" onAction={() => router.push('/explore')} />
+        <EmptyState icon={BellOff} title="You're all caught up" message="Friend requests, invites and vibes will show up here." action="Explore hangouts" onAction={() => router.push('/explore')} />
       ) : (
         <SectionList
           sections={sections}

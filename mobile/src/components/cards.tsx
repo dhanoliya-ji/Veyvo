@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { BookOpen, CalendarClock, Lock, MessageSquareText, Mic, Users, Video } from 'lucide-react-native';
+import { BookOpen, CalendarClock, Lock, MessageSquareText, Mic, Repeat, Users, Video } from 'lucide-react-native';
 
 import type { Community, Room, UserSummary } from '@/api/types';
 import { UserPhoto } from '@/components/UserPhoto';
@@ -88,11 +88,21 @@ export function RoomCard({ room, width = 264, onPress }: { room: Room; width?: n
           ) : (
             <View />
           )}
-          {room.visibility === 'private' ? (
-            <View style={[styles.iconPill, { backgroundColor: 'rgba(16,17,26,0.72)' }]} accessibilityLabel="Invite only">
-              <Lock size={12} color="#F5F5FB" />
-            </View>
-          ) : null}
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            {room.repeat_weekly ? (
+              <View style={[styles.livePill, { backgroundColor: 'rgba(16,17,26,0.72)' }]} accessibilityLabel="Repeats every week">
+                <Repeat size={12} color="#F5F5FB" />
+                <Text variant="tiny" style={{ color: '#F5F5FB' }}>
+                  Weekly
+                </Text>
+              </View>
+            ) : null}
+            {room.visibility === 'private' ? (
+              <View style={[styles.iconPill, { backgroundColor: 'rgba(16,17,26,0.72)' }]} accessibilityLabel="Invite only">
+                <Lock size={12} color="#F5F5FB" />
+              </View>
+            ) : null}
+          </View>
         </View>
         {room.participants_preview.length ? (
           <View style={styles.sceneBottom}>
@@ -110,6 +120,7 @@ export function RoomCard({ room, width = 264, onPress }: { room: Room; width?: n
             {room.kind === 'study' ? 'Study room' : room.format === 'video' ? 'Video' : room.format === 'voice' ? 'Voice' : 'Text'} · {room.host?.display_name ?? 'Host left'}
           </Text>
           {room.friends_inside > 0 ? <Badge label={`${room.friends_inside} friend${room.friends_inside > 1 ? 's' : ''}`} tone="success" /> : null}
+          {(room.regulars_inside ?? 0) > 0 ? <Badge label={`${room.regulars_inside} regular${(room.regulars_inside ?? 0) > 1 ? 's' : ''} here`} tone="accent" /> : null}
         </View>
       </View>
     </PressableScale>

@@ -17,6 +17,14 @@ Veyvo's rule: **collect the minimum, default to private, enforce on the server.*
 | Privacy & notification settings | User control | `privacy_settings` | Until deletion |
 | Friendships, requests, blocks | Social graph and safety | respective tables | Until deletion |
 | Direct messages | Chat | `messages` | Until the sender deletes them or deletes their account |
+| Voice notes | Chat | `messages` (kind `voice`) + private bucket `voice/` | Until deleted by the sender or account deletion; the file is removed with the message |
+| Profile prompts (max 3) | Profile | `profiles.prompts` | Until edited or account deletion |
+| Friend Swipe decisions | Don't show the same people twice; mutual match | `swipe_decisions` | Until account deletion. Passes are never shown to anyone, and likes are never revealed |
+| "Free to talk" until | Shown to friends | `profiles.free_until` | Overwritten or cleared by the user |
+| Squads, squad chat | Small friend groups | `squads`, `squad_members`, `squad_messages` | Until removed or account deletion |
+| Slow Letters | Pen pals | `pen_pals`, `letters` | Hidden from both when the connection ends; deleted with the account |
+| UTC offset (pen pals only) | Pairing across time zones and letter delay | `pen_pal_waiting`, `pen_pals` | Only while looking or connected; cleared when the connection ends. Never shown to anyone |
+| Waves 👋 | Friend nudges | Redis only, TTL 10 minutes | Ephemeral |
 | Hangout chat | Rooms | `room_messages` | **30 days**, then purged automatically |
 | Community posts | Communities | `community_posts` | Until removed or account deletion |
 | Game results, gems ledger, quests, kudos, daily answers | Features | respective tables | Until deletion |

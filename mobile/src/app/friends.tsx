@@ -7,6 +7,7 @@ import { Check, Inbox, Search, Sparkles, Users, X } from 'lucide-react-native';
 import { useFriendRequests, useFriends, useRespondRequest, useSuggestions } from '@/api/hooks';
 import type { Friend, FriendRequest, UserSummary } from '@/api/types';
 import { useDebounced } from '@/api/social-extra';
+import { HangOutButton } from '@/components/HangOutSheet';
 import { UserRow } from '@/components/cards';
 import { AddFriendButton, FriendshipMeter, OnlineLabel } from '@/components/social';
 import { Button, EmptyState, ErrorState, Header, IconButton, Input, RowSkeleton, Screen, SegmentedControl, Text } from '@/components/ui';
@@ -122,11 +123,14 @@ function FriendsTab() {
           <UserRow
             user={item}
             online={item.online === true}
-            subtitle={item.vibe ? VIBE_LABELS[item.vibe] : `Friends since ${new Date(item.since).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`}
+            subtitle={item.free_now ? 'Free to talk 🟢' : item.vibe ? VIBE_LABELS[item.vibe] : `Friends since ${new Date(item.since).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`}
             right={
-              <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                {item.online === true ? <OnlineLabel small /> : null}
-                <FriendshipMeter level={item.friendship_level} progress={item.friendship_progress} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                  {item.online === true ? <OnlineLabel small /> : null}
+                  <FriendshipMeter level={item.friendship_level} progress={item.friendship_progress} />
+                </View>
+                <HangOutButton user={item} compact />
               </View>
             }
           />

@@ -9,6 +9,7 @@ import { qk, useCommunities, useInterests, useRecommendedCommunities, useRooms, 
 import type { Interest, SearchResults } from '@/api/types';
 import { useDebounced } from '@/api/social-extra';
 import { CommunityCard, RoomCard, UserRow } from '@/components/cards';
+import { FriendSwipeEntry } from '@/components/discover/FriendSwipeEntry';
 import { PersonCard } from '@/components/social';
 import { Chip, EmptyState, ErrorState, Header, Input, PressableScale, RoomCardSkeleton, RowSkeleton, Screen, SectionHeader, Skeleton, Text } from '@/components/ui';
 import { useTabBarInset } from '@/components/TabBar';
@@ -97,6 +98,7 @@ export default function Explore() {
         <SearchView key="search" term={term} pending={term !== query.trim()} scope={scope} onResultTap={remember} onPickInterest={(i) => { setQuery(''); setInterestId(i.id); }} />
       ) : (
         <Animated.View key="discover" entering={reduceMotion ? undefined : FadeIn.duration(200)} style={{ gap: space.xxl }}>
+          <FriendSwipeEntry />
           <RecentSearches onPick={setQuery} />
           <InterestBrowser selected={interestId} onSelect={setInterestId} />
           {interestId == null ? <Discovery /> : null}

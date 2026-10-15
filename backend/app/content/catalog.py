@@ -68,13 +68,27 @@ ROOM_CATEGORIES = [
 
 VIBES = ["down_to_chat", "studying", "listening", "gaming", "busy"]
 
+# "Vibes": positive compliments people send after hanging out. Stored as kudos tags, so the keys
+# must never change (older keys keep working); new ones can be added.
 KUDOS_TAGS = {
     "funny": "Funny",
     "kind": "Kind",
     "great_listener": "Great listener",
+    "good_energy": "Good energy",
+    "great_player": "Great player",
     "smart": "Big brain",
     "creative": "Creative",
     "great_host": "Great host",
+}
+KUDOS_EMOJI = {
+    "funny": "😂",
+    "kind": "💛",
+    "great_listener": "🎧",
+    "good_energy": "✨",
+    "great_player": "🏆",
+    "smart": "🧠",
+    "creative": "🎨",
+    "great_host": "🎤",
 }
 
 REACTIONS = ["wave", "laugh", "clap", "heart", "fire", "party"]

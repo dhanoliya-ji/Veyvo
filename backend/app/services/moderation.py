@@ -41,6 +41,10 @@ async def create_report(db: AsyncSession, reporter: User, target_type: str, targ
         )
     )
     if duplicate:
+        if evidence.get("voice_key"):
+            from app.core.storage import get_storage
+
+            get_storage().delete(evidence["voice_key"])  # the open report already holds a copy
         return duplicate
     report = Report(
         reporter_id=reporter.id,
@@ -74,7 +78,10 @@ async def _resolve_target(db: AsyncSession, reporter: User, target_type: str, ta
         # Only someone in the conversation can report a private message.
         if msg is None or await db.get(ConversationMember, (msg.conversation_id, reporter.id)) is None:
             raise not_found
-        return msg.sender_id, {"content": msg.content, "sent_at": msg.created_at.isoformat()}
+        evidence = {"content": msg.content, "sent_at": msg.created_at.isoformat()}
+        if msg.kind == "voice":
+            evidence.update(_voice_evidence(msg))
+        return msg.sender_id, evidence
     if target_type == "room":
         room = await db.get(Room, tid)
         if room is None:
@@ -106,7 +113,45 @@ async def _resolve_target(db: AsyncSession, reporter: User, target_type: str, ta
         if post is None:
             raise not_found
         return post.author_id, {"content": post.content, "community_id": str(post.community_id)}
+    if target_type == "squad_message":
+        from app.models import SquadMember, SquadMessage
+
+        msg = await db.get(SquadMessage, tid)
+        # Only current squad members can report squad chat.
+        if msg is None or await db.get(SquadMember, (msg.squad_id, reporter.id)) is None:
+            raise not_found
+        return msg.sender_id, {"content": msg.content, "squad_id": str(msg.squad_id), "sent_at": msg.created_at.isoformat()}
+    if target_type == "letter":
+        from app.models import Letter, PenPal
+        from app.services.letters import can_report_letter
+
+        letter = await db.get(Letter, tid)
+        # Only the recipient can report a letter, and only once it has arrived.
+        if letter is None or not can_report_letter(await db.get(PenPal, letter.pen_pal_id), reporter.id, letter):
+            raise not_found
+        return letter.sender_id, {"content": letter.content, "pen_pal_id": str(letter.pen_pal_id), "sent_at": letter.sent_at.isoformat()}
     raise not_found
+
+
+def _voice_evidence(msg: Message) -> dict:
+    """Copy a reported voice note so moderators can listen even if the sender deletes it.
+
+    The copy uses `snapshot_key`, so the retention purge deletes it with the rest of the evidence.
+    """
+    out: dict = {"kind": "voice", "duration_ms": msg.duration_ms}
+    if not msg.media_key:
+        return out
+    from app.core.storage import get_storage
+
+    storage = get_storage()
+    data = storage.get(msg.media_key)
+    if data is None:
+        return out
+    ext = msg.media_key.rsplit(".", 1)[-1] if "." in msg.media_key else "m4a"
+    key = f"evidence/voice/{uuid.uuid4().hex}.{ext}"
+    storage.put(key, data, "audio/mp4" if ext == "m4a" else f"audio/{ext}")
+    out.update({"snapshot_key": key, "voice_key": key})
+    return out
 
 
 # ----- Moderator tools -----
@@ -192,7 +237,12 @@ async def report_detail(db: AsyncSession, report_id: uuid.UUID) -> ReportDetail:
         target = await db.get(User, report.target_user_id)
         target_status = target.status if target else None
     evidence = dict(report.evidence or {})
-    if evidence.get("snapshot_key"):
+    if evidence.get("voice_key"):
+        from app.core.storage import get_storage
+
+        # Voice evidence is audio, not an image: expose it as voice_url only.
+        evidence["voice_url"] = get_storage().url(evidence["voice_key"])
+    elif evidence.get("snapshot_key"):
         from app.core.storage import get_storage
 
         evidence["snapshot_url"] = get_storage().url(evidence["snapshot_key"])
@@ -309,14 +359,25 @@ async def decide(db: AsyncSession, actor: User, report_id: uuid.UUID, action: st
 
 async def _remove_content(db: AsyncSession, report: Report) -> None:
     tid = uuid.UUID(report.target_id)
-    model = {"message": Message, "room_message": RoomMessage, "community_post": CommunityPost}.get(report.target_type)
+    from app.models import Letter, SquadMessage
+
+    model = {
+        "message": Message,
+        "room_message": RoomMessage,
+        "community_post": CommunityPost,
+        "squad_message": SquadMessage,
+        "letter": Letter,
+    }.get(report.target_type)
     if model is None:
         raise AppError("Only messages and posts can be removed.", code="invalid_action")
     item = await db.get(model, tid)
     if item is None:
         return
     if model is Message:
-        item.deleted_at, item.content = utcnow(), ""
+        from app.services.messaging import remove_media
+
+        remove_media(item)
+        item.deleted_at, item.content, item.context = utcnow(), "", None
     else:
         item.removed_at = utcnow()
 

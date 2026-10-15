@@ -52,6 +52,9 @@ export type Privacy = {
   show_interests: boolean;
   photo_visibility?: 'everyone' | 'friends';
   allow_icebreakers: boolean;
+  show_in_discover?: boolean;
+  discover_verified_only?: boolean;
+  allow_pen_pals?: boolean;
   notification_previews: boolean;
   notification_prefs: Partial<Record<NotificationPref, boolean>>;
 };
@@ -74,6 +77,7 @@ export type Me = {
   onboarded: boolean;
   plus_active?: boolean;
   game_theme?: Record<string, string>;
+  prompts?: import('./discover-extra').ProfilePrompt[];
   photo_url?: string | null;
   verified?: boolean;
   xp: number;
@@ -82,6 +86,8 @@ export type Me = {
   gems: number;
   streak: { current: number; best: number; freezes: number; last_date: string | null; active_today: boolean };
   created_at: string;
+  /** Free to talk until this time (only friends see it). */
+  free_until?: string | null;
 };
 
 export type Relationship = 'self' | 'friends' | 'request_sent' | 'request_received' | 'none' | 'blocked';
@@ -102,15 +108,31 @@ export type PublicProfile = UserSummary & {
   can_invite: boolean;
   limited: boolean;
   photos?: import('./photos-extra').Photo[];
+  prompts?: import('./discover-extra').ProfilePrompt[];
 };
 
-export type Friend = UserSummary & { friendship_level: number; friendship_progress: number; online: boolean | null; since: string };
+export type Friend = UserSummary & { friendship_level: number; friendship_progress: number; online: boolean | null; since: string; free_now?: boolean };
 
 export type FriendRequest = { id: UUID; user: UserSummary; direction: 'incoming' | 'outgoing'; status: string; created_at: string };
 
 export type Blocked = UserSummary & { blocked_at: string };
 
-export type Message = { id: UUID; conversation_id: UUID; sender_id: UUID; client_id: string; content: string; created_at: string };
+/** What a message replies to: one of the other person's photos or profile prompts. */
+export type MessageContext = { type: 'photo' | 'prompt'; photo_id?: UUID; photo_url?: string; prompt_key?: string; prompt?: string; text?: string };
+
+export type Message = {
+  id: UUID;
+  conversation_id: UUID;
+  sender_id: UUID;
+  client_id: string;
+  content: string;
+  created_at: string;
+  kind?: 'text' | 'voice';
+  /** Voice notes: a short-lived signed URL (null once deleted). */
+  media_url?: string | null;
+  duration_ms?: number | null;
+  context?: MessageContext | null;
+};
 
 /** Client-side message with delivery state for optimistic sending. */
 export type LocalMessage = Message & { pending?: boolean; failed?: boolean };
@@ -141,7 +163,7 @@ export type Room = {
   id: UUID;
   title: string;
   description: string;
-  kind: 'hangout' | 'study' | 'call';
+  kind: 'hangout' | 'study' | 'call' | 'game';
   format: 'text' | 'voice' | 'video';
   visibility: 'public' | 'private';
   scene: Scene;
@@ -154,6 +176,10 @@ export type Room = {
   participant_count: number;
   participants_preview: UserSummary[];
   friends_inside: number;
+  /** People here now who've been in at least 2 earlier rooms with you. */
+  regulars_inside?: number;
+  /** Regulars: the next session is scheduled for the same time next week. */
+  repeat_weekly?: boolean;
   scheduled_for: string | null;
   started_at: string | null;
   created_at: string;
@@ -187,6 +213,7 @@ export type RoomInput = {
   capacity: number;
   open_mic: boolean;
   scheduled_for?: string | null;
+  repeat_weekly?: boolean;
   focus_minutes?: number;
   break_minutes?: number;
 };
@@ -230,6 +257,10 @@ export type GameView = {
   legal_actions: { type: string; [key: string]: unknown }[];
   results: { player_id: string; rank: number; score: number; role?: string; survived?: boolean }[] | null;
   settings: Record<string, unknown>;
+  /** In-game voice/video call for the players (null when no call is live). */
+  call_room_id?: UUID | null;
+  call_live?: boolean;
+  call_count?: number;
   version: number;
   server_time: string;
   created_at: string;
@@ -305,7 +336,7 @@ export type IcebreakerSession = {
   expires_at: string;
 };
 
-export type ReportTarget = 'user' | 'room' | 'community' | 'message' | 'room_message' | 'community_post' | 'photo';
+export type ReportTarget = 'user' | 'room' | 'community' | 'message' | 'room_message' | 'community_post' | 'photo' | 'squad_message' | 'letter';
 export type Report = { id: UUID; target_type: ReportTarget; target_id: string; reason: string; status: string; created_at: string };
 
 export type AuditEntry = { id: UUID; actor: UserSummary | null; action: string; target_type: string; target_id: string; reason: string; created_at: string };

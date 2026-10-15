@@ -135,4 +135,13 @@ async def serve_media(key: str, e: int = Query(...), s: str = Query(max_length=6
     data = get_storage().get(key)
     if data is None:
         raise NotFound("Not found.", code="not_found")
-    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
+    ext = key.rsplit(".", 1)[-1].lower()
+    media_type = {
+        "m4a": "audio/mp4",
+        "mp4": "audio/mp4",
+        "aac": "audio/aac",
+        "webm": "audio/webm",
+        "ogg": "audio/ogg",
+        "png": "image/png",
+    }.get(ext, "image/jpeg")
+    return Response(data, media_type=media_type, headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})

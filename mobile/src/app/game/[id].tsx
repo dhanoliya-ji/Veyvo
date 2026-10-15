@@ -6,12 +6,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Flag, Gamepad2, Share2, X } from 'lucide-react-native';
 
 import { GAME_META, isApiError, type GameAction } from '@/api/games-extra';
+import type { Participant } from '@/api/types';
 import { qk, useGame, useGameActions, useMe } from '@/api/hooks';
 import { UserPhoto } from '@/components/UserPhoto';
 import { GameBoard, turnIds } from '@/components/games/GameBoard';
 import { GameFinished } from '@/components/games/GameFinished';
 import { GameLobby, shareGameCode } from '@/components/games/GameLobby';
 import { PlayerStrip, SpectatorBanner, type GameCtx } from '@/components/games/GameParts';
+import { BubbleMenu } from '@/components/games/call/BubbleMenu';
+import { FaceBubbles } from '@/components/games/call/FaceBubbles';
+import { GameCallBar } from '@/components/games/call/GameCallBar';
+import { useGameCall } from '@/components/games/call/useGameCall';
 import { openReport } from '@/components/safety/ReportSheet';
 import { Button, EmptyState, ErrorState, IconButton, PressableScale, Sheet, Skeleton, Text, confirm } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
@@ -90,6 +95,12 @@ export default function GameScreen() {
   const myPlayer = game?.players.find((p) => p.id === meId);
   const isPlayer = !!myPlayer?.active;
   const inProgress = status === 'lobby' || status === 'active';
+
+  // ----- In-game voice/video call (players only; hidden when voice isn't available) -----
+  const call = useGameCall(game, meId, isPlayer);
+  const [facesHidden, setFacesHidden] = useState(false);
+  const [bubblePerson, setBubblePerson] = useState<Participant | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   // ----- Actions: always sent with the version on screen; one at a time. -----
   const busy = useRef(false);
@@ -179,7 +190,7 @@ export default function GameScreen() {
 
   // ----- Header -----
   const header = (
-    <View style={{ paddingTop: insets.top, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+    <View onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)} style={{ paddingTop: insets.top, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
       <View style={styles.header}>
         <IconButton icon={X} label={isPlayer && inProgress ? 'Leave game' : 'Close'} onPress={leave} />
         <View style={{ flex: 1 }}>
@@ -197,6 +208,11 @@ export default function GameScreen() {
         {game && game.players.some((p) => p.id !== meId) ? <IconButton icon={Flag} label="Report a player" onPress={() => setReportOpen(true)} /> : null}
       </View>
       {game && game.status !== 'cancelled' ? <PlayerStrip game={game} meId={meId} activeIds={game.status === 'active' ? turnIds({ game }) : []} /> : null}
+      {call.available ? (
+        <View style={{ paddingHorizontal: screenPadding, paddingBottom: space.sm }}>
+          <GameCallBar call={call} facesHidden={facesHidden} onToggleFaces={() => setFacesHidden((h) => !h)} />
+        </View>
+      ) : null}
     </View>
   );
 
@@ -255,6 +271,20 @@ export default function GameScreen() {
       >
         {body}
       </ScrollView>
+
+      {call.inCall && call.room ? (
+        <FaceBubbles
+          participants={call.room.participants}
+          meId={meId}
+          voice={call.voice}
+          minimised={facesHidden}
+          onToggleMinimised={() => setFacesHidden((h) => !h)}
+          onReveal={(uid) => call.setVideoShown(uid, true)}
+          onPressPerson={setBubblePerson}
+          top={headerHeight + space.sm}
+        />
+      ) : null}
+      <BubbleMenu person={bubblePerson} meId={meId} voice={call.voice} setVideoShown={call.setVideoShown} onClose={() => setBubblePerson(null)} />
 
       <Sheet visible={reportOpen} onClose={() => setReportOpen(false)} title="Report a player" scroll>
         <Text tone="muted" style={{ marginBottom: space.md }}>

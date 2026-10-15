@@ -66,14 +66,18 @@ async def privacy():
 <li><strong>Age confirmation:</strong> you enter your date of birth at sign-up so we can confirm you are 18 or older. <strong>We do not store your date of birth</strong> — only the fact and time that you confirmed you're an adult.</li>
 <li><strong>Profile:</strong> your username, display name, optional bio, interests, an optional "vibe" status and up to 6 profile photos you choose to upload. Photos are re-saved on our servers, which <strong>removes hidden location (GPS) and device data</strong>, and are checked for safety before others can see them.</li>
 <li><strong>Selfie verification (optional):</strong> if you ask to be verified, you take one selfie doing a pose. A reviewer (or an automated check) compares it with your profile photos. <strong>The selfie is deleted as soon as it has been reviewed.</strong> We keep only whether you are verified. We don't build or keep a facial template.</li>
-<li><strong>Activity you create:</strong> friend connections, direct messages, hangout chat, community posts, game scores, Daily Question answers, kudos, gems and quest progress.</li>
+<li><strong>Profile prompts (optional):</strong> up to 3 short answers to fun prompts, shown on your profile.</li>
+<li><strong>Activity you create:</strong> friend connections, direct messages and voice notes you send, hangout and squad chat, community posts, game scores, Daily Question answers, vibes (compliments), gems and quest progress.</li>
+<li><strong>Friend Swipe:</strong> who you chose to connect with or skip, so we don't show you the same people again. Skips are never shown to anyone, and nobody can see who liked them.</li>
+<li><strong>Slow Letters (optional):</strong> letters you write to pen pals, and, while you're looking for a pen pal, your device's time-zone offset from UTC (for example "+5:30"). We use it only to pair people in different time zones and to work out how long a letter takes to arrive. It is never shown to anyone and isn't a location.</li>
+<li><strong>"Free to talk" status (optional):</strong> when you set it, friends can see you're free until the time you chose.</li>
 <li><strong>Safety records:</strong> reports you file or that are filed about content, and records of moderation actions.</li>
 <li><strong>Device:</strong> a push notification token if you allow notifications, and the platform (Android/iOS) of signed-in devices.</li>
 </ul>
 <h2>What we don't collect</h2>
 <ul><li>No real name, phone number, contacts, location or date of birth. Photo location data is stripped on upload.</li>
 <li>No IP address storage. IPs are used briefly, in hashed form, only to limit abuse (rate limiting) and then expire.</li>
-<li>No advertising identifiers, no selling or renting your data, and no data brokers.</li>
+<li>We don't store advertising identifiers, and we never sell or rent your data or use data brokers. If ads are shown, Google AdMob may use your device's advertising ID under its own policy and your consent choices.</li>
 <li>Voice and video in hangouts and calls are relayed live and <strong>are not recorded</strong> by Veyvo. Your camera and microphone are only used while you turn them on.</li><li><strong>Live video safety checks:</strong> while your camera is on in a hangout that isn't a private call with a friend, we take a still image of your video every few seconds and run it through an automated image-safety check. Images that pass are deleted straight away. If an image may break our guidelines, that single image is kept as evidence for our safety team to review, and if it is clearly unsafe your camera is switched off for that hangout. Private calls between friends are not checked this way.</li></ul>
 <h2>How we use it</h2>
 <p>To run the service (accounts, messaging, hangouts, games), keep people safe (reports, moderation, blocking), and send notifications you've enabled. Notification previews of messages are <strong>off by default</strong>.</p>
@@ -89,10 +93,13 @@ async def privacy():
 <li>Report evidence: cleared 180 days after a report is resolved.</li>
 <li>Verification selfies: deleted immediately after review.</li><li>Live video safety images: deleted right after the check, unless flagged (then kept with the report).</li>
 <li>Profile photos: until you delete them or your account (deleted photos are removed from storage).</li>
-<li>Direct messages: until you or the other person deletes them, or an account is deleted.</li>
+<li>Direct messages and voice notes: until you or the other person deletes them, or an account is deleted (deleted voice notes are removed from storage).</li>
+<li>Letters and squad chat: until the sender deletes their account. Ending a pen pal connection hides the letters from both people.</li>
+<li>Pen-pal time-zone offset: kept only while you're looking for a pen pal or have an active pen pal, and cleared when you stop looking or the connection ends.</li>
 <li>Everything else: until you delete your account.</li></ul>
 <h2>Your rights and controls</h2>
-<ul><li><strong>Download your data:</strong> Settings → Privacy → Download my data.</li>
+<ul><li><strong>Download your data:</strong> Settings → Account → Download my data.</li>
+<li><strong>In-app controls:</strong> see Safety centre → Your rights &amp; controls for everything you can do: decline or end calls, hide anyone's video, leave instantly, block, report, hide from Friend Swipe and turn off pen pal matching.</li>
 <li><strong>Delete your account:</strong> in the app (Settings → Account → Delete account) or on the web at <a href="/account/delete">/account/delete</a>. Deletion is permanent and immediate: your profile, messages you sent, chat, posts, friendships and all other personal data are erased. Reports you filed are kept without your identity so open safety reviews can finish.</li>
 <li>You can also contact us at <a href="mailto:{CONTACT}">{CONTACT}</a> to access, correct or delete your data.</li></ul>
 <h2>Security</h2><p>Data is encrypted in transit (HTTPS/TLS). Passwords are hashed with Argon2id, sign-in tokens are short-lived and rotate, and staff access to moderation tools is role-restricted and audited.</p>

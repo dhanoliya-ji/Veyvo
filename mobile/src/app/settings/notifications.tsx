@@ -16,7 +16,7 @@ const PREFS: { key: NotificationPref; title: string; icon: typeof Bell }[] = [
   { key: 'room_invites', title: 'Hangout invites', icon: Send },
   { key: 'events', title: 'Events starting', icon: CalendarClock },
   { key: 'games', title: 'Game invites', icon: Gamepad2 },
-  { key: 'kudos', title: 'Kudos', icon: Heart },
+  { key: 'kudos', title: 'Vibes', icon: Heart },
 ];
 
 export default function NotificationSettings() {

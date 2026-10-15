@@ -4,7 +4,8 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.content.catalog import DEFAULT_GAME_THEME, KUDOS_TAGS, item_for_value, requires_ownership
+from app.content.catalog import DEFAULT_GAME_THEME, KUDOS_EMOJI, KUDOS_TAGS, item_for_value, requires_ownership
+from app.content.prompts import PROMPT_TEXT
 from app.core.database import utcnow
 from app.core.exceptions import AppError, Conflict, Forbidden
 from app.models import Interest, Kudos, OwnedItem, PrivacySettings, Profile, User, UserInterest
@@ -13,6 +14,7 @@ from app.schemas.profile import (
     MeOut,
     PrivacyOut,
     PrivacyUpdate,
+    ProfilePrompt,
     PublicProfile,
     StreakOut,
 )
@@ -43,6 +45,15 @@ async def user_interests(db: AsyncSession, user_id: uuid.UUID) -> list[Interest]
     return list(rows)
 
 
+def profile_prompts(profile: Profile | None) -> list[ProfilePrompt]:
+    """Answered prompts with their catalogue text. Prompts no longer in the catalogue are skipped."""
+    out = []
+    for item in (profile.prompts if profile else None) or []:
+        if isinstance(item, dict) and item.get("key") in PROMPT_TEXT and item.get("answer"):
+            out.append(ProfilePrompt(key=item["key"], text=PROMPT_TEXT[item["key"]], answer=str(item["answer"])))
+    return out
+
+
 async def build_me(db: AsyncSession, user: User) -> MeOut:
     profile, privacy = user.profile, user.privacy
     interests = await user_interests(db, user.id)
@@ -64,6 +75,7 @@ async def build_me(db: AsyncSession, user: User) -> MeOut:
         privacy=PrivacyOut.model_validate(privacy),
         onboarded=profile.onboarded_at is not None,
         game_theme={**DEFAULT_GAME_THEME, **(profile.game_theme or {})},
+        prompts=profile_prompts(profile),
         plus_active=bool(profile.plus_until and profile.plus_until > utcnow()),
         xp=profile.xp,
         level=level_for_xp(profile.xp),
@@ -77,6 +89,7 @@ async def build_me(db: AsyncSession, user: User) -> MeOut:
             active_today=profile.streak_last_date == today,
         ),
         created_at=user.created_at,
+        free_until=profile.free_until if profile.free_until and profile.free_until > utcnow() else None,
     )
 
 
@@ -227,6 +240,7 @@ async def public_profile(db: AsyncSession, viewer: User, target_id: uuid.UUID) -
         can_invite=not is_self and (privacy.who_can_invite == "everyone" or (privacy.who_can_invite == "friends" and is_friend)),
         limited=limited,
         photos=await visible_photos(db, viewer.id, target, is_friend),
+        prompts=[] if limited else profile_prompts(target.profile),
     )
 
 
@@ -257,7 +271,19 @@ async def give_kudos(db: AsyncSession, giver: User, receiver_id: uuid.UUID, tag:
     await rewards.grant(db, receiver_id, gems=2, xp=5, reason="kudos_received", key=f"kudos:{giver.id}:{receiver_id}:{day}")
     from app.services.notifications import notify
 
-    await notify(db, receiver_id, "kudos", entity_type="user", entity_id=str(receiver_id), data={"tag": tag}, group_key=f"kudos:{day}")
+    # The giver is only shown when you're friends; otherwise vibes stay anonymous.
+    friends = await are_friends(db, giver.id, receiver_id)
+    label = f"{KUDOS_EMOJI.get(tag, '')} {KUDOS_TAGS[tag]}".strip()
+    await notify(
+        db,
+        receiver_id,
+        "kudos",
+        actor_id=giver.id if friends else None,
+        entity_type="user",
+        entity_id=str(receiver_id),
+        data={"tag": tag, "label": label, "text": f"{'Your friend' if friends else 'Someone'} sent you a vibe: {label}"},
+        group_key=f"kudos:{day}:{giver.id}" if friends else f"kudos:{day}",
+    )
     await db.commit()
 
 

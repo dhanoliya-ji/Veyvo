@@ -6,6 +6,7 @@ from app.api.dependencies import DB, ActiveUser
 from app.games import ENGINES
 from app.schemas.common import Ok
 from app.schemas.games import GameActionIn, GameCreateIn, GameView
+from app.schemas.social import RoomDetail
 from app.services import games
 from app.services.rate_limit import hit
 
@@ -82,3 +83,10 @@ async def settings(game_id: uuid.UUID, body: dict, user: ActiveUser, db: DB):
 async def action(game_id: uuid.UUID, body: GameActionIn, user: ActiveUser, db: DB):
     await hit("game_action", str(user.id))
     return await games.act(db, user, game_id, body.action, body.version)
+
+
+@router.post("/{game_id}/call", response_model=RoomDetail)
+async def call(game_id: uuid.UUID, user: ActiveUser, db: DB):
+    """Join the game's private voice/video call (created on first use, only for players)."""
+    await hit("game_action", str(user.id))
+    return await games.start_call(db, user, game_id)

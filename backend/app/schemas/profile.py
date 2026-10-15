@@ -56,6 +56,9 @@ class PrivacyOut(ApiModel):
     show_interests: bool
     photo_visibility: Literal["everyone", "friends"] = "everyone"
     allow_icebreakers: bool
+    show_in_discover: bool = True
+    discover_verified_only: bool = False
+    allow_pen_pals: bool = True
     notification_previews: bool
     notification_prefs: dict
 
@@ -70,6 +73,9 @@ class PrivacyUpdate(ApiModel):
     show_interests: bool | None = None
     photo_visibility: Literal["everyone", "friends"] | None = None
     allow_icebreakers: bool | None = None
+    show_in_discover: bool | None = None
+    discover_verified_only: bool | None = None
+    allow_pen_pals: bool | None = None
     notification_previews: bool | None = None
     notification_prefs: dict[str, bool] | None = None
 
@@ -88,6 +94,14 @@ class InterestOut(ApiModel):
     name: str
     category: str
     icon: str
+
+
+class ProfilePrompt(ApiModel):
+    """One answered profile prompt. `text` is the prompt itself, from the server catalogue."""
+
+    key: str
+    text: str = ""
+    answer: str
 
 
 class StreakOut(ApiModel):
@@ -116,12 +130,14 @@ class MeOut(ApiModel):
     onboarded: bool
     plus_active: bool = False
     game_theme: dict = {}
+    prompts: list[ProfilePrompt] = []
     xp: int
     level: int
     level_progress: float
     gems: int
     streak: StreakOut
     created_at: datetime
+    free_until: datetime | None = None  # "Free to talk" until (shown to friends only)
 
 
 class ProfileUpdate(ApiModel):
@@ -184,6 +200,7 @@ class PublicProfile(UserSummary):
     can_invite: bool
     limited: bool = False  # profile restricted to friends
     photos: list[dict] = []
+    prompts: list[ProfilePrompt] = []
 
 
 class KudosIn(ApiModel):
@@ -200,6 +217,7 @@ class FriendOut(UserSummary):
     friendship_progress: float
     online: bool | None = None
     since: datetime
+    free_now: bool = False  # they've said they're free to talk right now
 
 
 class FriendRequestOut(ApiModel):
@@ -212,7 +230,7 @@ class FriendRequestOut(ApiModel):
 
 class FriendRequestIn(ApiModel):
     user_id: uuid.UUID
-    source: Literal["profile", "icebreaker", "room", "search"] | None = "profile"
+    source: Literal["profile", "icebreaker", "room", "search", "game"] | None = "profile"
 
 
 class BlockedOut(UserSummary):

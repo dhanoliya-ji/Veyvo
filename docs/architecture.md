@@ -34,7 +34,16 @@
 - **Monetization** (`services/monetization.py`). Rewarded-ad gems are granted only after AdMob server-side verification (a signed callback). Google Play purchases (gem packs, Veyvo Plus) are checked with the Play Developer API before anything is granted. Every grant uses an idempotency key (ad transaction id or purchase-token hash).
 - **Voice and video.** The backend checks authentication, room access, bans, presence and speaker role, then mints a 10-minute LiveKit token. The token always allows the microphone (for speakers) and allows the camera only in video rooms: in friend calls (`services/calls.py`, private rooms of kind `call`) for everyone, elsewhere only for verified users whose camera the host hasn't turned off. Host moderation is mirrored to LiveKit through its server API (mute, camera off, remove, close room).
 - **Live-video checks** (`services/livemod.py`). LiveKit calls a signed webhook (`POST /rooms/livekit-webhook`) when a camera is published. For rooms that aren't friend calls, the backend starts an egress that saves a still of that camera every few seconds to the private bucket (no video is recorded). A background task moderates each still and deletes it. A clearly unsafe frame switches that person's camera off for the room and files a report with the frame as evidence; a borderline frame only files a report. This needs LiveKit, S3 storage and a moderation provider.
-- **Migrations.** Alembic in `migrations/`, from `0001` (initial schema) to `0006` (game themes).
+- **Game calls.** `POST /games/{id}/call` gives each game its own private room (kind `game`) linked by `game_sessions.call_room_id`; only players can join, and it ends when the last person leaves. Camera in a game call needs verification unless everyone else who can see you is your friend (re-checked when someone new joins). Call, game and squad rooms never appear in listings.
+- **Meeting and staying close** (`services/discover.py`, `presence.py`, `squads.py`, `letters.py`).
+  - **Friend Swipe:** a daily deck (20 decisions a day, 40 with Plus), with the top 3 as Daily Picks. Candidates respect blocks, request privacy, photo visibility and the "show me in Friend Swipe" / "verified only" settings. Skips are silent and likes are never revealed; a mutual like creates the friendship and delivers any notes as first messages.
+  - **Presence:** waves (10-minute TTL in Redis) and "Free to talk" (`profiles.free_until`, shown to friends only).
+  - **Squads:** up to 8 friends, with chat, a private squad room, a weekly reminder and a weekly streak.
+  - **Slow Letters:** pen pals are matched by coarse UTC offset. Letter delay grows with the time-zone gap, and you can become friends after 3 letters each.
+  - **Periodic jobs** (`services/scheduler.py`): letter-arrival notices, squad-night reminders and streaks. They run idempotently on every instance.
+- **Voice notes.** `POST /conversations/{id}/voice` checks the real audio type from the file bytes, limits notes to 60 s / 2 MB, and stores them privately under `voice/`. They're served by signed URL and deleted with the message or the account. A reported voice note is copied to evidence so moderators can listen.
+- **Regulars.** Rooms can repeat weekly: when one ends, the next is scheduled 7 days later. Room cards show how many "regulars" (people you've been in 2+ rooms with) are inside.
+- **Migrations.** Alembic in `migrations/`, from `0001` (initial schema) to `0007` (swipe, squads, letters, voice notes, game calls).
 
 ## Mobile
 

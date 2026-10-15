@@ -19,8 +19,9 @@ from app.core.exceptions import AppError, Conflict, Forbidden, NotFound
 from app.core.store import get_store
 from app.games import ENGINES
 from app.games.base import IllegalMove
-from app.models import GamePlayer, GameSession, Room, User
+from app.models import GamePlayer, GameSession, Room, RoomMember, User
 from app.schemas.games import GamePlayerOut, GameView
+from app.schemas.social import RoomDetail
 from app.services import moments, rewards
 from app.services.users import blocked_ids, friend_ids, summaries
 from app.websocket.hub import publish
@@ -302,6 +303,80 @@ async def _auto_advance(db: AsyncSession, game_id: uuid.UUID) -> None:
     await _notify_changed(game)
 
 
+GAME_NAMES = {
+    "chess": "Chess",
+    "ludo": "Ludo",
+    "crazy_eights": "Crazy Eights",
+    "four_in_a_row": "Four in a Row",
+    "truth_or_dare": "Truth or Dare",
+    "werewolf": "Werewolf",
+}
+
+
+async def start_call(db: AsyncSession, user: User, session_id: uuid.UUID) -> RoomDetail:
+    """Join (creating if needed) the private voice/video call for a game's players.
+
+    The call is a Room of kind "game" linked through `GameSession.call_room_id`. Only players get in:
+    each player is added as a speaker when they join the call, so people who join the game later
+    can join too. If the previous call has ended, a fresh one is created.
+    """
+    from app.services.rooms import join_room, refresh_camera_rights
+
+    game = await _locked(db, session_id)
+    await check_game_access(db, user, game)
+    player = await db.get(GamePlayer, (game.id, user.id))
+    if player is None or not player.active:
+        raise Forbidden("Only players can join this game's call.", code="not_in_game")
+    if game.status == "cancelled":
+        raise Conflict("This game was cancelled.", code="game_not_active")
+    engine = engine_for(game)
+    room = await db.get(Room, game.call_room_id) if game.call_room_id else None
+    created = False
+    if room is None or room.status != "live":
+        host_id = game.host_id or user.id
+        room = Room(
+            host_id=host_id,
+            title=f"{GAME_NAMES.get(game.game_type, 'Game')} call"[:80],
+            kind="game",
+            format="video",
+            visibility="private",
+            capacity=engine.max_players + 2,
+            open_mic=True,
+            status="live",
+            started_at=utcnow(),
+        )
+        db.add(room)
+        await db.flush()
+        db.add(RoomMember(room_id=room.id, user_id=host_id, role="host"))
+        game.call_room_id = room.id
+        game.version += 1
+        created = True
+    member = await db.get(RoomMember, (room.id, user.id))
+    if member is None:
+        db.add(RoomMember(room_id=room.id, user_id=user.id, role="speaker"))
+    elif member.role in ("invited", "listener"):
+        member.role = "speaker"
+    await db.commit()
+    detail = await join_room(db, user, room.id)
+    if created:
+        await _notify_changed(game)
+    else:
+        # Someone new is in the call: camera rights of unverified players may change.
+        await refresh_camera_rights(db, room)
+    return detail
+
+
+async def _call_status(db: AsyncSession, game: GameSession) -> tuple[bool, int]:
+    if not game.call_room_id:
+        return False, 0
+    room = await db.get(Room, game.call_room_id)
+    if room is None or room.status != "live":
+        return False, 0
+    from app.services.rooms import present_ids
+
+    return True, len(await present_ids(room.id))
+
+
 async def is_player(db: AsyncSession, user_id: uuid.UUID, game_id: uuid.UUID) -> bool:
     return await db.get(GamePlayer, (game_id, user_id)) is not None
 
@@ -320,6 +395,7 @@ async def view(db: AsyncSession, user: User, game_id: uuid.UUID) -> GameView:
     me = next((p for p in players if p.user_id == user.id), None)
     viewer = str(user.id) if me else None
     started = game.status in ("active", "finished") and bool(game.state)
+    call_live, call_count = await _call_status(db, game)
     return GameView(
         id=game.id,
         code=game.code,
@@ -335,6 +411,9 @@ async def view(db: AsyncSession, user: User, game_id: uuid.UUID) -> GameView:
         results=engine.results(game.state) if game.status == "finished" and game.state else None,
         settings=game.settings or {},
         phase_deadline=await phase_deadline(game),
+        call_room_id=game.call_room_id if call_live else None,
+        call_live=call_live,
+        call_count=call_count,
         version=game.version,
         server_time=utcnow(),
         created_at=game.created_at,

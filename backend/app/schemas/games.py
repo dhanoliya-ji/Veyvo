@@ -31,6 +31,10 @@ class GameView(ApiModel):
     settings: dict
     # When the current timed phase ends (Werewolf day/discussion); clients show a countdown.
     phase_deadline: datetime | None = None
+    # In-game voice/video call (a private Room of kind "game") for the players.
+    call_room_id: uuid.UUID | None = None
+    call_live: bool = False
+    call_count: int = 0
     version: int
     server_time: datetime
     created_at: datetime

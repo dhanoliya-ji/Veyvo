@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, File, Form, Query, UploadFile
 
 from app.api.dependencies import DB, ActiveUser
 from app.schemas.common import Ok, Page
@@ -45,7 +45,24 @@ async def list_messages(
 @router.post("/{conversation_id}/messages", response_model=MessageOut, status_code=201)
 async def send(conversation_id: uuid.UUID, body: MessageIn, user: ActiveUser, db: DB):
     await hit("message", str(user.id))
-    return await messaging.send_message(db, user, conversation_id, body.content, body.client_id)
+    context = body.context.model_dump(mode="json", exclude_none=True) if body.context else None
+    return await messaging.send_message(db, user, conversation_id, body.content, body.client_id, context)
+
+
+@router.post("/{conversation_id}/voice", response_model=MessageOut, status_code=201)
+async def send_voice(
+    conversation_id: uuid.UUID,
+    user: ActiveUser,
+    db: DB,
+    file: UploadFile = File(...),
+    client_id: str = Form(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+    duration_ms: int = Form(ge=0, le=120_000),
+):
+    await hit("message", str(user.id))
+    await hit("voice_upload", str(user.id))
+    data = await file.read(messaging.VOICE_MAX_BYTES + 1)
+    await file.close()
+    return await messaging.send_voice(db, user, conversation_id, data, client_id, duration_ms)
 
 
 @router.post("/{conversation_id}/read", response_model=Ok)

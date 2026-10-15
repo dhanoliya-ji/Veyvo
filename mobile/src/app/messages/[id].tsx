@@ -3,18 +3,24 @@ import { ActivityIndicator, FlatList, StyleSheet, TextInput, View } from 'react-
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, Ban, Eraser, Flag, Lock, MessageCircleHeart, MoreHorizontal, SendHorizontal, UserRound } from 'lucide-react-native';
+import { AlertCircle, ArrowLeft, Ban, Eraser, Flag, Lock, MessageCircleHeart, MoreHorizontal, SendHorizontal, Sparkles, UserRound } from 'lucide-react-native';
 
-import { markConversationRead, qk, sendMessageRequest, useBlock, useConversation, useDeleteMessage, useMe, useMessages } from '@/api/hooks';
+import { sendTextRequest, sendVoiceRequest, type ReplyContext } from '@/api/connect-extra';
+import { markConversationRead, qk, useBlock, useConversation, useDeleteMessage, useMe, useMessages } from '@/api/hooks';
 import type { Conversation, LocalMessage, Page } from '@/api/types';
 import { patchCachedMessage, useClearConversation } from '@/api/social-extra';
 import { CallButton } from '@/components/CallButton';
+import { HangOutSheet } from '@/components/HangOutSheet';
+import { ReplyChip, ReplyContextPreview } from '@/components/chat/ReplyContext';
+import { VoiceBubble } from '@/components/chat/VoiceBubble';
+import { RecordingBar, VoiceRecordButton, type RecordingState } from '@/components/chat/VoiceRecordButton';
 import { UserPhoto } from '@/components/UserPhoto';
 import { openReport } from '@/components/safety/ReportSheet';
 import { EmptyState, ErrorState, IconButton, ListGroup, ListRow, PressableScale, RowSkeleton, Screen, Sheet, Text, confirm } from '@/components/ui';
 import { upsertMessage } from '@/hooks/useRealtimeSync';
 import { ApiError, errorMessage } from '@/lib/api';
 import { clientId, clockTime, dayLabel } from '@/lib/format';
+import { formatDuration, isAudioSupported } from '@/lib/audio';
 import { haptic } from '@/lib/haptics';
 import { realtime } from '@/lib/realtime';
 import { toast } from '@/stores/toast';
@@ -32,7 +38,15 @@ const dayKey = (iso: string) => new Date(iso).toDateString();
 const isLocal = (m: LocalMessage) => m.id.startsWith('local-');
 
 export default function Chat() {
-  const { id = '' } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{
+    id: string;
+    replyType?: string;
+    replyPhotoId?: string;
+    replyPhotoUrl?: string;
+    replyPromptKey?: string;
+    replyText?: string;
+  }>();
+  const id = params.id ?? '';
   const qc = useQueryClient();
   const { colors } = useTheme();
   const me = useMe();
@@ -44,6 +58,21 @@ export default function Chat() {
   const [text, setText] = useState('');
   const [typing, setTyping] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [hangOut, setHangOut] = useState(false);
+  const [recording, setRecording] = useState<RecordingState | null>(null);
+  // Voice notes waiting to be (re)sent: client id -> local file.
+  const voiceFiles = useRef<Record<string, { uri: string; durationMs: number }>>({});
+
+  // ----- "Replying to…" from a profile photo or prompt (route params) -----
+  const [reply, setReply] = useState<ReplyContext | null>(null);
+  useEffect(() => {
+    const type = params.replyType;
+    if (type === 'photo' && params.replyPhotoId) {
+      setReply({ type: 'photo', photo_id: params.replyPhotoId, photo_url: params.replyPhotoUrl, text: params.replyText?.slice(0, 150) || undefined });
+    } else if (type === 'prompt' && params.replyPromptKey) {
+      setReply({ type: 'prompt', prompt_key: params.replyPromptKey, text: params.replyText?.slice(0, 150) || undefined });
+    }
+  }, [params.replyType, params.replyPhotoId, params.replyPhotoUrl, params.replyPromptKey, params.replyText]);
   const mountedAt = useRef(Date.now());
   const myIdRef = useRef(myId);
   myIdRef.current = myId;
@@ -152,7 +181,12 @@ export default function Chat() {
       upsertMessage(qc, pendingMsg);
       patchCachedMessage(qc, id, local.sender_id, cid, { pending: true, failed: false });
       try {
-        const saved = await sendMessageRequest(id, local.content, cid);
+        const file = voiceFiles.current[cid];
+        const saved =
+          local.kind === 'voice' && file
+            ? await sendVoiceRequest(id, file.uri, cid, file.durationMs)
+            : await sendTextRequest(id, local.content, cid, local.context as ReplyContext | null | undefined);
+        delete voiceFiles.current[cid];
         upsertMessage(qc, saved);
         setOutbox((o) => {
           const next = { ...o };
@@ -177,10 +211,30 @@ export default function Chat() {
     const content = text.trim();
     if (!content || !ready || !myId || !canMessage || content.length > MAX_LENGTH) return;
     const cid = clientId();
-    const local: LocalMessage = { id: `local-${cid}`, conversation_id: id, sender_id: myId, client_id: cid, content, created_at: new Date().toISOString(), pending: true };
+    const local: LocalMessage = { id: `local-${cid}`, conversation_id: id, sender_id: myId, client_id: cid, content, created_at: new Date().toISOString(), pending: true, context: reply };
     setText('');
+    setReply(null);
     stopTyping();
     haptic.light();
+    deliver(local);
+  };
+
+  const onVoiceRecorded = (uri: string, durationMs: number) => {
+    if (!ready || !myId || !canMessage) return;
+    const cid = clientId();
+    voiceFiles.current[cid] = { uri, durationMs };
+    const local: LocalMessage = {
+      id: `local-${cid}`,
+      conversation_id: id,
+      sender_id: myId,
+      client_id: cid,
+      content: '🎙️ Voice note',
+      kind: 'voice',
+      media_url: uri,
+      duration_ms: durationMs,
+      created_at: new Date().toISOString(),
+      pending: true,
+    };
     deliver(local);
   };
 
@@ -238,6 +292,7 @@ export default function Chat() {
       conversation={conv.data}
       typing={typing}
       onMenu={() => setMenu(true)}
+      onHangOut={() => setHangOut(true)}
     />
   );
 
@@ -266,7 +321,19 @@ export default function Chat() {
             </View>
           </View>
         ) : (
-          <Composer value={text} onChange={onChangeText} onSend={onSend} disabled={!ready || !conv.data} name={name} />
+          <View style={{ gap: space.xs }}>
+            {reply ? <ReplyChip context={reply} otherName={name} onDismiss={() => setReply(null)} /> : null}
+            <Composer
+              value={text}
+              onChange={onChangeText}
+              onSend={onSend}
+              disabled={!ready || !conv.data}
+              name={name}
+              recording={recording}
+              onRecordingChange={setRecording}
+              onVoiceRecorded={onVoiceRecorded}
+            />
+          </View>
         )
       }
     >
@@ -319,6 +386,7 @@ export default function Chat() {
                 message={item}
                 mine={item.sender_id === myId}
                 senderName={item.sender_id === myId ? 'You' : name}
+                otherName={name}
                 showDay={!older || dayKey(older.created_at) !== dayKey(item.created_at)}
                 joinOlder={sameGroup(item, older)}
                 joinNewer={sameGroup(item, newer)}
@@ -333,12 +401,13 @@ export default function Chat() {
       )}
 
       <ChatMenu conversation={conv.data} visible={menu} onClose={() => setMenu(false)} />
+      {other ? <HangOutSheet user={other} visible={hangOut} onClose={() => setHangOut(false)} inChat /> : null}
     </Screen>
   );
 }
 
 // ---------- Header ----------
-function ChatHeader({ conversation, typing, onMenu }: { conversation?: Conversation; typing: boolean; onMenu: () => void }) {
+function ChatHeader({ conversation, typing, onMenu, onHangOut }: { conversation?: Conversation; typing: boolean; onMenu: () => void; onHangOut: () => void }) {
   const other = conversation?.other_user;
   const online = conversation?.online === true;
   const status = typing ? 'typing…' : online ? 'Online' : other?.username ? `@${other.username}` : undefined;
@@ -362,7 +431,8 @@ function ChatHeader({ conversation, typing, onMenu }: { conversation?: Conversat
       ) : (
         <View style={{ flex: 1 }} />
       )}
-      {other && conversation?.can_message ? <CallButton userId={other.id} name={other.display_name} compact /> : null}
+      {other && conversation?.can_message ? <CallButton userId={other.id} name={other.display_name} format="voice" compact /> : null}
+      {other && conversation?.can_message ? <IconButton icon={Sparkles} label={`Hang out with ${other.display_name}`} onPress={onHangOut} /> : null}
       {other ? <IconButton icon={MoreHorizontal} label="Chat options" onPress={onMenu} /> : null}
     </View>
   );
@@ -434,6 +504,7 @@ type RowProps = {
   message: LocalMessage;
   mine: boolean;
   senderName: string;
+  otherName: string;
   showDay: boolean;
   joinOlder: boolean;
   joinNewer: boolean;
@@ -443,9 +514,10 @@ type RowProps = {
   onLongPress: (m: LocalMessage) => void;
 };
 
-const MessageRow = memo(function MessageRow({ message: m, mine, senderName, showDay, joinOlder, joinNewer, seen, animate, onRetry, onLongPress }: RowProps) {
+const MessageRow = memo(function MessageRow({ message: m, mine, senderName, otherName, showDay, joinOlder, joinNewer, seen, animate, onRetry, onLongPress }: RowProps) {
   const { colors, reduceMotion } = useTheme();
   const deleted = m.content === '';
+  const voice = m.kind === 'voice' && !deleted;
   const showMeta = !joinNewer || m.failed || m.pending || seen;
   const big = radius.xl;
   const small = 6;
@@ -454,7 +526,8 @@ const MessageRow = memo(function MessageRow({ message: m, mine, senderName, show
     : { borderTopLeftRadius: joinOlder ? small : big, borderBottomLeftRadius: joinNewer ? small : big };
 
   const status = m.failed ? 'Not sent' : m.pending ? 'Sending' : seen ? 'Seen' : '';
-  const a11y = `${senderName}: ${deleted ? 'Message deleted' : m.content}. ${clockTime(m.created_at)}${status ? `. ${status}` : ''}`;
+  const body = deleted ? 'Message deleted' : voice ? `Voice note, ${formatDuration(m.duration_ms ?? 0)}` : m.content;
+  const a11y = `${senderName}: ${body}. ${clockTime(m.created_at)}${status ? `. ${status}` : ''}`;
 
   return (
     <Animated.View entering={animate && !reduceMotion ? FadeInDown.duration(220) : undefined} style={{ marginTop: joinOlder ? 2 : space.sm }}>
@@ -468,6 +541,7 @@ const MessageRow = memo(function MessageRow({ message: m, mine, senderName, show
         </View>
       ) : null}
       <View style={{ alignItems: mine ? 'flex-end' : 'flex-start' }}>
+        {m.context && !deleted ? <ReplyContextPreview context={m.context} mine={mine} otherName={otherName} /> : null}
         <PressableScale
           onPress={m.failed ? () => onRetry(m) : undefined}
           onLongPress={() => onLongPress(m)}
@@ -488,6 +562,8 @@ const MessageRow = memo(function MessageRow({ message: m, mine, senderName, show
             <Text variant="body" tone="faint" style={{ fontStyle: 'italic' }}>
               Message deleted
             </Text>
+          ) : voice ? (
+            <VoiceBubble url={m.media_url} durationMs={m.duration_ms} mine={mine} failed={m.failed} />
           ) : (
             <Text variant="body" selectable={false} style={{ color: mine && !m.failed ? colors.onPrimary : colors.text }}>
               {m.content}
@@ -539,31 +615,51 @@ function TypingBubble({ name }: { name: string }) {
 }
 
 // ---------- Composer ----------
-function Composer({ value, onChange, onSend, disabled, name }: { value: string; onChange: (t: string) => void; onSend: () => void; disabled: boolean; name: string }) {
+type ComposerProps = {
+  value: string;
+  onChange: (t: string) => void;
+  onSend: () => void;
+  disabled: boolean;
+  name: string;
+  recording: RecordingState | null;
+  onRecordingChange: (state: RecordingState | null) => void;
+  onVoiceRecorded: (uri: string, durationMs: number) => void;
+};
+
+function Composer({ value, onChange, onSend, disabled, name, recording, onRecordingChange, onVoiceRecorded }: ComposerProps) {
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
   const trimmed = value.trim();
   const near = value.length > MAX_LENGTH - 200;
+  const voiceAvailable = isAudioSupported();
   return (
     <View style={{ gap: space.xs }}>
       <View style={styles.composer}>
-        <View style={[styles.inputWrap, { backgroundColor: colors.surface, borderColor: focused ? colors.primary : colors.border }]}>
-          <TextInput
-            value={value}
-            onChangeText={onChange}
-            placeholder={`Message ${name}`}
-            placeholderTextColor={colors.textFaint}
-            selectionColor={colors.primary}
-            multiline
-            maxLength={MAX_LENGTH}
-            editable={!disabled}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            accessibilityLabel={`Message ${name}`}
-            style={[styles.input, { color: colors.text, fontFamily: fonts.regular }]}
-          />
-        </View>
-        <IconButton icon={SendHorizontal} variant="primary" label="Send message" disabled={disabled || !trimmed} onPress={onSend} size={48} />
+        {recording ? (
+          <RecordingBar state={recording} />
+        ) : (
+          <View style={[styles.inputWrap, { backgroundColor: colors.surface, borderColor: focused ? colors.primary : colors.border }]}>
+            <TextInput
+              value={value}
+              onChangeText={onChange}
+              placeholder={`Message ${name}`}
+              placeholderTextColor={colors.textFaint}
+              selectionColor={colors.primary}
+              multiline
+              maxLength={MAX_LENGTH}
+              editable={!disabled}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              accessibilityLabel={`Message ${name}`}
+              style={[styles.input, { color: colors.text, fontFamily: fonts.regular }]}
+            />
+          </View>
+        )}
+        {trimmed || !voiceAvailable ? (
+          <IconButton icon={SendHorizontal} variant="primary" label="Send message" disabled={disabled || !trimmed} onPress={onSend} size={48} />
+        ) : (
+          <VoiceRecordButton disabled={disabled} onRecordingChange={onRecordingChange} onRecorded={onVoiceRecorded} />
+        )}
       </View>
       {near ? (
         <Text variant="caption" tone={value.length >= MAX_LENGTH ? 'danger' : 'faint'} style={{ textAlign: 'right', marginRight: 60 }}>

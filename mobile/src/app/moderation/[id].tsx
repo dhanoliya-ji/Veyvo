@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import { useModDecision, useModReport } from '@/api/hooks';
 import { UserRow } from '@/components/cards';
+import { VoiceBubble } from '@/components/chat/VoiceBubble';
 import { REPORT_REASONS } from '@/components/safety/ReportSheet';
 import { Badge, Button, Card, Chip, ErrorState, Header, Input, RowSkeleton, Screen, SectionHeader, Text, confirm } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
@@ -57,9 +58,16 @@ export default function ReportReview() {
             </Text>
             {Object.keys(r.evidence).length ? (
               Object.entries(r.evidence)
-                .filter(([k]) => k !== 'snapshot_key' && k !== 'scores')
+                .filter(([k]) => k !== 'snapshot_key' && k !== 'voice_key' && k !== 'scores')
                 .map(([k, v]) =>
-                  k.endsWith('_url') && typeof v === 'string' ? (
+                  k === 'voice_url' && typeof v === 'string' ? (
+                    <View key={k} style={{ gap: 2 }} accessibilityLabel="Reported voice note">
+                      <Text variant="caption" tone="faint">
+                        voice note
+                      </Text>
+                      <VoiceBubble url={v} durationMs={typeof r.evidence.duration_ms === 'number' ? r.evidence.duration_ms : null} mine={false} />
+                    </View>
+                  ) : k.endsWith('_url') && typeof v === 'string' ? (
                     <Image key={k} source={{ uri: v }} style={{ width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md }} contentFit="contain" accessibilityLabel="Evidence image" />
                   ) : (
                     <View key={k} style={{ gap: 2 }}>

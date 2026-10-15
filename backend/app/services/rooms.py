@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.content.catalog import FREE_SCENES, item_for_value
@@ -27,6 +27,10 @@ from app.services.users import blocked_ids, friend_ids, summaries, summary
 from app.websocket.hub import publish
 
 PRESENCE_TTL = 60
+# Private rooms that belong to something else (a friend call, a game, a squad) and never appear in listings.
+UNLISTED_KINDS = ("call", "game", "squad")
+# These end on their own as soon as the last person leaves.
+AUTO_END_KINDS = ("call", "game")
 EMPTY_ROOM_GRACE = timedelta(minutes=15)
 
 ROOM_RULES = [
@@ -159,7 +163,57 @@ def _can_video(room: Room, member: RoomMember | None, user: User) -> bool:
     return room.kind == "call" or user.profile.verified_at is not None
 
 
+async def _game_players_all_friends(db: AsyncSession, room: Room, user: User) -> bool:
+    """Game calls: true when everyone else who can see you (other active players and anyone in the call) is your friend."""
+    if room.kind != "game":
+        return False
+    from app.models import GamePlayer, GameSession
+
+    game_id = await db.scalar(select(GameSession.id).where(GameSession.call_room_id == room.id).limit(1))
+    if game_id is None:
+        return False
+    players = await db.scalars(select(GamePlayer.user_id).where(GamePlayer.session_id == game_id, GamePlayer.active.is_(True)))
+    others = (set(players) | set(await present_ids(room.id))) - {user.id}
+    if not others:
+        return True
+    return others <= await friend_ids(db, user.id)
+
+
+async def can_video(db: AsyncSession, room: Room, member: RoomMember | None, user: User) -> bool:
+    """`_can_video` plus the game-call rule: unverified players may use the camera when every other player is a friend."""
+    if _can_video(room, member, user):
+        return True
+    if room.kind != "game" or room.format != "video" or member is None or member.camera_blocked or not _can_speak(room, member, user):
+        return False
+    return await _game_players_all_friends(db, room, user)
+
+
 # ----- Views -----
+REGULARS_MIN_SHARED = 2
+REGULARS_LOOKBACK = 200  # only the viewer's most recent rooms, so the query stays cheap
+
+
+async def regulars_inside(db: AsyncSession, viewer_id: uuid.UUID, room_id: uuid.UUID, present: list[uuid.UUID]) -> int:
+    """People here now who were in at least 2 earlier rooms with the viewer."""
+    others = [p for p in present if p != viewer_id]
+    if not others:
+        return 0
+    mine = (
+        select(RoomMember.room_id)
+        .where(RoomMember.user_id == viewer_id, RoomMember.room_id != room_id, RoomMember.first_joined_at.is_not(None))
+        .order_by(RoomMember.first_joined_at.desc())
+        .limit(REGULARS_LOOKBACK)
+        .scalar_subquery()
+    )
+    rows = await db.execute(
+        select(RoomMember.user_id)
+        .where(RoomMember.room_id.in_(mine), RoomMember.user_id.in_(others), RoomMember.first_joined_at.is_not(None))
+        .group_by(RoomMember.user_id)
+        .having(func.count() >= REGULARS_MIN_SHARED)
+    )
+    return len(rows.all())
+
+
 async def room_out(
     db: AsyncSession, room: Room, viewer: User, *, friends: set[uuid.UUID] | None = None, present: list[uuid.UUID] | None = None
 ) -> RoomOut:
@@ -167,6 +221,7 @@ async def room_out(
     friends = friends if friends is not None else await friend_ids(db, viewer.id)
     people = await summaries(db, ([room.host_id] if room.host_id else []) + present[:5])
     member = await _member(db, room.id, viewer.id)
+    regulars = await regulars_inside(db, viewer.id, room.id, present)
     return RoomOut(
         id=room.id,
         title=room.title,
@@ -184,6 +239,8 @@ async def room_out(
         participant_count=len(present),
         participants_preview=[people[p] for p in present[:5] if p in people],
         friends_inside=len(friends & set(present)),
+        regulars_inside=regulars,
+        repeat_weekly=bool(room.repeat_weekly),
         scheduled_for=room.scheduled_for,
         started_at=room.started_at,
         created_at=room.created_at,
@@ -223,13 +280,15 @@ async def room_detail(db: AsyncSession, room: Room, user: User) -> RoomDetail:
         )
     order = {"host": 0, "moderator": 1, "speaker": 2, "listener": 3}
     participants.sort(key=lambda p: order.get(p.role, 4))
+    unverified = user.profile.verified_at is None
+    friends_only_game = room.kind == "game" and unverified and await _game_players_all_friends(db, room, user)
     return RoomDetail(
         **base.model_dump(),
         participants=participants,
         rules=ROOM_RULES,
         can_speak=_can_speak(room, member, user),
-        can_video=_can_video(room, member, user),
-        video_requires_verification=room.format == "video" and room.kind != "call" and user.profile.verified_at is None,
+        can_video=await can_video(db, room, member, user),
+        video_requires_verification=room.format == "video" and room.kind != "call" and unverified and not friends_only_game,
         can_moderate=_can_moderate(room, member, user),
         media_available=get_settings().media_configured,
     )
@@ -273,6 +332,7 @@ async def create_room(db: AsyncSession, user: User, data: RoomIn) -> Room:
         interest_id=data.interest_id,
         capacity=data.capacity,
         open_mic=data.open_mic,
+        repeat_weekly=data.repeat_weekly,
         status="scheduled" if scheduled else "live",
         scheduled_for=data.scheduled_for if scheduled else None,
         started_at=None if scheduled else now,
@@ -311,7 +371,7 @@ async def list_rooms(
 
     stmt = select(Room).where(
         Room.status == status,
-        Room.kind != "call",  # friend calls never show up in listings
+        Room.kind.not_in(UNLISTED_KINDS),  # friend calls, game calls and squad rooms never show up in listings
         or_(Room.visibility == "public", Room.id.in_(my_rooms)),
         Room.id.not_in(banned_rooms),
         or_(Room.community_id.is_(None), Room.community_id.not_in(private_communities), Room.community_id.in_(my_communities)),
@@ -350,6 +410,7 @@ async def _expire_if_idle(db: AsyncSession, room: Room) -> bool:
     if utcnow() - reference > EMPTY_ROOM_GRACE:
         room.status = "ended"
         room.ended_at = utcnow()
+        await _schedule_next_weekly(db, room)
         await db.commit()
         return True
     return False
@@ -439,17 +500,83 @@ async def leave_room(db: AsyncSession, user: User, room_id: uuid.UUID) -> None:
         await db.commit()
     await publish(f"room:{room_id}", "room.participant_left", {"room_id": str(room_id), "user_id": str(user.id)})
     room = await db.get(Room, room_id)
-    if room and room.kind == "call" and room.status == "live" and not await present_ids(room_id):
+    if room and room.kind in AUTO_END_KINDS and room.status == "live" and not await present_ids(room_id):
         await end_room(db, room, reason="call_ended")
 
 
 async def end_room(db: AsyncSession, room: Room, *, reason: str = "ended_by_host") -> None:
     room.status = "ended"
     room.ended_at = utcnow()
+    if reason not in NO_REPEAT_REASONS:
+        await _schedule_next_weekly(db, room)
     await db.commit()
     await get_store().delete(presence_key(room.id))
     await publish(f"room:{room.id}", "room.ended", {"room_id": str(room.id), "reason": reason})
     await _media_close_room(room.id)
+
+
+# Rooms ended for these reasons don't get a next weekly session.
+NO_REPEAT_REASONS = ("ended_by_moderator", "host_left")
+
+
+async def _schedule_next_weekly(db: AsyncSession, room: Room) -> Room | None:
+    """Regulars: schedule the same room for exactly a week later. Idempotent; the caller commits."""
+    if not room.repeat_weekly or room.host_id is None or room.kind not in ("hangout", "study"):
+        return None
+    host = await db.get(User, room.host_id)
+    if host is None or host.status != "active":
+        return None
+    if room.community_id:
+        cm = await db.get(CommunityMember, (room.community_id, host.id))
+        community = await db.get(Community, room.community_id)
+        if cm is None or cm.status != "active" or community is None or community.status != "active":
+            return None
+    base = room.scheduled_for or room.started_at or room.created_at
+    if base is None:
+        return None
+    next_at = base + timedelta(days=7)
+    now = utcnow()
+    while next_at <= now:  # a very long session (or a late expiry) still lands on the same weekday and time
+        next_at += timedelta(days=7)
+    existing = await db.scalar(
+        select(Room.id).where(
+            Room.host_id == room.host_id,
+            Room.repeat_weekly.is_(True),
+            Room.title == room.title,
+            Room.scheduled_for == next_at,
+            Room.status != "ended",
+        )
+    )
+    if existing:
+        return None
+    nxt = Room(
+        host_id=room.host_id,
+        community_id=room.community_id,
+        title=room.title,
+        description=room.description,
+        kind=room.kind,
+        format=room.format,
+        visibility=room.visibility,
+        scene=room.scene,
+        interest_id=room.interest_id,
+        capacity=room.capacity,
+        open_mic=room.open_mic,
+        repeat_weekly=True,
+        status="scheduled",
+        scheduled_for=next_at,
+        timer={
+            "phase": "idle",
+            "focus_minutes": (room.timer or {}).get("focus_minutes", 25),
+            "break_minutes": (room.timer or {}).get("break_minutes", 5),
+            "cycle": 1,
+        }
+        if room.kind == "study"
+        else {},
+    )
+    db.add(nxt)
+    await db.flush()
+    db.add(RoomMember(room_id=nxt.id, user_id=room.host_id, role="host"))
+    return nxt
 
 
 async def update_room(db: AsyncSession, user: User, room: Room, changes: dict) -> None:
@@ -529,7 +656,7 @@ async def moderate(db: AsyncSession, actor: User, room: Room, target_id: uuid.UU
         await _media_set_publish(room.id, target_id, False)
     elif action in ("unmute", "make_speaker", "make_moderator", "camera_off", "camera_on"):
         target_user = await db.get(User, target_id)
-        await _media_set_publish(room.id, target_id, can_speak, camera=bool(target_user and _can_video(room, target, target_user)))
+        await _media_set_publish(room.id, target_id, can_speak, camera=bool(target_user and await can_video(db, room, target, target_user)))
 
 
 async def set_hand(db: AsyncSession, user: User, room: Room, raised: bool) -> None:
@@ -664,7 +791,7 @@ async def media_token(db: AsyncSession, user: User, room: Room) -> MediaTokenOut
         raise AppError("This hangout isn't live.", code="room_not_live", status_code=409)
     member = await _require_present(db, room, user)
     can_publish = _can_speak(room, member, user)
-    can_video = _can_video(room, member, user)
+    video_ok = await can_video(db, room, member, user)
     from livekit import api as lk
 
     ttl = 600
@@ -680,12 +807,29 @@ async def media_token(db: AsyncSession, user: User, room: Room) -> MediaTokenOut
                 can_publish=can_publish,
                 can_subscribe=True,
                 can_publish_data=True,
-                can_publish_sources=["microphone", "camera"] if can_video else ["microphone"],
+                can_publish_sources=["microphone", "camera"] if video_ok else ["microphone"],
             )
         )
         .to_jwt()
     )
-    return MediaTokenOut(url=settings.livekit_url, token=token, can_publish=can_publish, can_publish_video=can_video, expires_in=ttl)
+    return MediaTokenOut(url=settings.livekit_url, token=token, can_publish=can_publish, can_publish_video=video_ok, expires_in=ttl)
+
+
+async def refresh_camera_rights(db: AsyncSession, room: Room) -> None:
+    """Re-check camera rights for everyone in a game call (e.g. after a stranger joins the game) and tell LiveKit."""
+    if room.kind != "game" or not get_settings().media_configured:
+        return
+    present = await present_ids(room.id)
+    if not present:
+        return
+    members = {
+        m.user_id: m for m in await db.scalars(select(RoomMember).where(RoomMember.room_id == room.id, RoomMember.user_id.in_(present)))
+    }
+    for uid in present:
+        member, person = members.get(uid), await db.get(User, uid)
+        if member is None or person is None:
+            continue
+        await _media_set_publish(room.id, uid, _can_speak(room, member, person), camera=await can_video(db, room, member, person))
 
 
 async def _livekit_call(fn_name: str, request) -> None:

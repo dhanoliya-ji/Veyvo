@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { Award, Ban, Flag, Hand, Mic, MicOff, ShieldCheck, ShieldOff, UserMinus, UserRound, UserX, Video, VideoOff } from 'lucide-react-native';
+import { Award, Ban, Eye, EyeOff, Flag, Hand, Mic, MicOff, ShieldCheck, ShieldOff, UserMinus, UserRound, UserX, Video, VideoOff, Volume2, VolumeX } from 'lucide-react-native';
 
 import { useBlock, useConfig, useGiveKudos, useRoomAction } from '@/api/hooks';
 import type { ModerateAction, Participant } from '@/api/types';
@@ -23,9 +23,17 @@ type Props = {
   /** Speaking roles and muting only matter in voice rooms. */
   isVoice: boolean;
   onClose: () => void;
+  /** Controls that only change what *you* see and hear (voice/video rooms). */
+  local?: {
+    cameraOn: boolean;
+    videoShown: boolean;
+    onToggleVideo: (show: boolean) => void;
+    audioMuted: boolean;
+    onToggleAudio: (muted: boolean) => void;
+  };
 };
 
-export function ParticipantSheet({ roomId, participant, meId, iAmHost, canModerate, isVoice, onClose }: Props) {
+export function ParticipantSheet({ roomId, participant, meId, iAmHost, canModerate, isVoice, onClose, local }: Props) {
   const config = useConfig();
   const kudos = useGiveKudos();
   const block = useBlock();
@@ -139,6 +147,35 @@ export function ParticipantSheet({ roomId, participant, meId, iAmHost, canModera
                   )}
                 </View>
               ) : null}
+            </ListGroup>
+          ) : null}
+
+          {!isMe && isVoice && local ? (
+            <ListGroup title="Just for you">
+              {local.cameraOn ? (
+                <>
+                  <ListRow
+                    icon={local.videoShown ? EyeOff : Eye}
+                    title={local.videoShown ? 'Hide their video' : 'Show their video'}
+                    subtitle={local.videoShown ? "Only you stop seeing it. They aren't told." : undefined}
+                    onPress={() => {
+                      local.onToggleVideo(!local.videoShown);
+                      close();
+                    }}
+                  />
+                  <Divider inset={64} />
+                </>
+              ) : null}
+              <ListRow
+                icon={local.audioMuted ? Volume2 : VolumeX}
+                title={local.audioMuted ? 'Unmute for me' : 'Mute for me'}
+                subtitle={local.audioMuted ? undefined : "Only you stop hearing them. They aren't told."}
+                onPress={() => {
+                  local.onToggleAudio(!local.audioMuted);
+                  toast.show({ title: local.audioMuted ? `You can hear ${p.display_name} again` : `${p.display_name} is muted for you`, tone: 'info' });
+                  close();
+                }}
+              />
             </ListGroup>
           ) : null}
 

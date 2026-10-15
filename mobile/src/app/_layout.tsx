@@ -10,11 +10,16 @@ import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, In
 
 import { useMe } from '@/api/hooks';
 import { IncomingCall } from '@/components/IncomingCall';
+import { MatchModalHost } from '@/components/discover/MatchModal';
+import { PresenceNudges } from '@/components/presence/PresenceNudge';
 import { AccountBlockedOverlay } from '@/components/safety/AccountBlockedOverlay';
 import { ReportHost } from '@/components/safety/ReportSheet';
 import { ConfirmHost, OfflineBanner, Toaster } from '@/components/ui';
+import { useDiscoverRealtime } from '@/hooks/useDiscoverRealtime';
+import { usePresenceRealtime } from '@/hooks/usePresenceRealtime';
 import { useNotificationRouting } from '@/hooks/usePushNotifications';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
+import { useSquadsRealtime } from '@/hooks/useSquadsRealtime';
 import { queryClient } from '@/lib/queryClient';
 import { startNetworkMonitoring } from '@/stores/network';
 import { useSession } from '@/stores/session';
@@ -60,6 +65,9 @@ function AuthGate() {
 
   useRealtimeSync(status === 'signedIn' && !!me.data?.onboarded);
   useNotificationRouting(status === 'signedIn' && !!me.data?.onboarded);
+  usePresenceRealtime(status === 'signedIn' && !!me.data?.onboarded);
+  useDiscoverRealtime(status === 'signedIn' && !!me.data?.onboarded);
+  useSquadsRealtime(status === 'signedIn' && !!me.data?.onboarded);
   return null;
 }
 
@@ -83,6 +91,8 @@ function Shell() {
       <ReportHost />
       <AccountBlockedOverlay />
       <IncomingCall />
+      <PresenceNudges />
+      <MatchModalHost />
     </>
   );
 }

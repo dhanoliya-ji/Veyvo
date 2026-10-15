@@ -15,6 +15,7 @@ import {
   LogOut,
   Mic,
   MicOff,
+  PhoneOff,
   Power,
   Settings2,
   Smile,
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react-native';
 
 import { joinRoomRequest, leaveRoomRequest, qk, useBlocked, useCreateGame, useMe, useRoom, useRoomAction, useRoomChat, useRoomGames } from '@/api/hooks';
+import { endCallRequest } from '@/api/connect-extra';
 import { GAME_META, ROOM_GAME_TYPES, type GameType } from '@/api/games-extra';
 import { describeRoomError, setRoomTimer, upsertRoomMessage } from '@/api/rooms-extra';
 import type { GameView, Participant, RoomDetail, RoomMessage, TimerState } from '@/api/types';
@@ -237,7 +239,21 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
   const mutedByHost = !!mine?.muted_by_host;
   const friendIds = useMemo(() => new Set(room.participants.filter((p) => p.is_friend).map((p) => p.id)), [room.participants]);
   // Friends' cameras show automatically; anyone else's video stays hidden (not even downloaded) until tapped.
-  const voice = useVoice(roomId, isVoice && room.media_available, room.can_speak, { canVideo: isVideo && !!room.can_video, autoShowVideo: (id) => friendIds.has(id) || room.kind === 'call' });
+  // Videos you chose to hide stay hidden, even friends'.
+  const hiddenVideos = useRef<Set<string>>(new Set());
+  const voice = useVoice(roomId, isVoice && room.media_available, room.can_speak, {
+    canVideo: isVideo && !!room.can_video,
+    autoShowVideo: (id) => !hiddenVideos.current.has(id) && (friendIds.has(id) || room.kind === 'call'),
+  });
+  const setVideoVisible = voice.setVideoVisible;
+  const setVideoShown = useCallback(
+    (userId: string, show: boolean) => {
+      if (show) hiddenVideos.current.delete(userId);
+      else hiddenVideos.current.add(userId);
+      setVideoVisible(userId, show);
+    },
+    [setVideoVisible],
+  );
 
   const blockedIds = useMemo(() => new Set((blocked.data ?? []).map((b) => b.id)), [blocked.data]);
   const blockedRef = useRef(blockedIds);
@@ -392,17 +408,23 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
     }
   };
 
-  const leave = async () => {
-    if (iAmHost) {
-      const ok = await confirm({
-        title: 'Leave your hangout?',
-        message: 'The room stays open for everyone else. To close it for everyone, choose End hangout from More.',
-        confirmLabel: 'Leave',
-        cancelLabel: 'Stay',
-      });
-      if (!ok) return;
+  // Friend calls: anyone in the call can end it for everyone.
+  const endCall = async () => {
+    try {
+      await endCallRequest(roomId);
+      haptic.success();
+      onEnded('self');
+    } catch (e) {
+      toast.error("Couldn't end the call", errorMessage(e));
     }
+  };
+
+  // Leaving is always one tap. Hosts get a gentle reminder that the room stays open.
+  const leave = () => {
     haptic.light();
+    if (iAmHost && room.kind !== 'call' && room.kind !== 'game' && room.participants.some((p) => p.id !== meId)) {
+      toast.show({ title: 'You left your hangout', message: 'It stays open for everyone else. To close it, come back and choose End hangout from More.', tone: 'info' });
+    }
     onLeave();
   };
 
@@ -457,8 +479,10 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
                   </Text>
                 </View>
                 <Text variant="caption" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
-                  {room.kind === 'call' ? 'Video call' : room.kind === 'study' ? 'Study' : isVideo ? 'Video' : isVoice ? 'Voice' : 'Text'}
+                  {room.kind === 'call' ? (isVideo ? 'Video call' : 'Voice call') : room.kind === 'game' ? 'Game call' : room.kind === 'study' ? 'Study' : isVideo ? 'Video' : isVoice ? 'Voice' : 'Text'}
                   {room.visibility === 'private' ? ' · Invite-only' : ''}
+                  {room.repeat_weekly ? ' · ↻ Weekly' : ''}
+                  {(room.regulars_inside ?? 0) > 0 ? ` · ${room.regulars_inside} regular${(room.regulars_inside ?? 0) > 1 ? 's' : ''} here` : ''}
                   {room.host ? ` · ${iAmHost ? 'You host' : `Hosted by ${room.host.display_name}`}` : ''}
                 </Text>
               </View>
@@ -478,7 +502,7 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
                   speaking={voice.speaking}
                   compact={!isVideo}
                   reactions={reactions}
-                  onReveal={voice.setVideoVisible}
+                  onReveal={setVideoShown}
                   onPressTile={setSelected}
                   onReport={(p) => openReport({ targetType: 'user', targetId: p.id, subject: `${p.display_name} in this hangout`, blockUserId: p.id })}
                 />
@@ -608,6 +632,7 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
             <ControlButton icon={Smile} label="React" active={reactionsOpen} onPress={() => setReactionsOpen((o) => !o)} accessibilityLabel={reactionsOpen ? 'Hide reactions' : 'Show reactions'} />
             {canInvite ? <ControlButton icon={UserPlus} label="Invite" onPress={() => setInviteOpen(true)} accessibilityLabel="Invite friends" /> : null}
             <ControlButton icon={Ellipsis} label="More" onPress={() => setMoreOpen(true)} accessibilityLabel="More options: games, report, settings" />
+            {room.kind === 'call' ? <ControlButton icon={PhoneOff} label="End call" tone="warn" onPress={endCall} accessibilityLabel="End call for everyone" /> : null}
             <View style={{ flex: 1 }} />
             <PressableScale onPress={leave} hapticFeedback="medium" accessibilityRole="button" accessibilityLabel="Leave hangout" style={[styles.leave, { backgroundColor: colors.danger }]}>
               <LogOut size={18} color="#FFFFFF" />
@@ -619,7 +644,26 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
         </View>
       </KeyboardAvoidingView>
 
-      <ParticipantSheet roomId={roomId} participant={selected} meId={meId} iAmHost={iAmHost} canModerate={room.can_moderate} isVoice={isVoice} onClose={() => setSelected(null)} />
+      <ParticipantSheet
+        roomId={roomId}
+        participant={selected}
+        meId={meId}
+        iAmHost={iAmHost}
+        canModerate={room.can_moderate}
+        isVoice={isVoice}
+        onClose={() => setSelected(null)}
+        local={
+          selected && isVoice
+            ? {
+                cameraOn: isVideo && voice.camerasOn.has(selected.id),
+                videoShown: !!voice.videos[selected.id],
+                onToggleVideo: (show) => setVideoShown(selected.id, show),
+                audioMuted: voice.audioMuted.has(selected.id),
+                onToggleAudio: (muted) => voice.setAudioMuted(selected.id, muted),
+              }
+            : undefined
+        }
+      />
       <InviteSheet roomId={roomId} visible={inviteOpen} onClose={() => setInviteOpen(false)} presentIds={presentIds} />
       {room.can_moderate ? <RoomSettingsSheet room={room} visible={settingsOpen} onClose={() => setSettingsOpen(false)} /> : null}
 

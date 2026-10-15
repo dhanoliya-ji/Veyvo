@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { BookOpen, Globe, Lock, MessageSquareText, Mic, Tent, Users, Video } from 'lucide-react-native';
+import { BookOpen, Globe, Lock, MessageSquareText, Mic, Repeat, Tent, Users, Video } from 'lucide-react-native';
 
 import { useConfig, useCreateRoom, useInterests, useMe } from '@/api/hooks';
 import { scheduleOptions, toIsoWithOffset, useHostableCommunities, useOwnedScenes } from '@/api/rooms-extra';
@@ -43,6 +43,7 @@ export default function CreateRoom() {
   const [focus, setFocus] = useState(25);
   const [brk, setBrk] = useState(5);
   const [scheduleKey, setScheduleKey] = useState('now');
+  const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [communityId, setCommunityId] = useState<string | null>(params.community_id ?? null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -97,6 +98,7 @@ export default function CreateRoom() {
       capacity,
       open_mic: format !== 'text' ? openMic : true,
       scheduled_for: chosenSchedule.date ? toIsoWithOffset(chosenSchedule.date) : null,
+      repeat_weekly: repeatWeekly,
       ...(kind === 'study' ? { focus_minutes: focus, break_minutes: brk } : {}),
     };
     try {
@@ -135,6 +137,7 @@ export default function CreateRoom() {
     participant_count: chosenSchedule.date ? 0 : 1,
     participants_preview: [],
     friends_inside: 0,
+    repeat_weekly: repeatWeekly,
     scheduled_for: chosenSchedule.date ? chosenSchedule.date.toISOString() : null,
     started_at: null,
     created_at: new Date().toISOString(),
@@ -270,6 +273,19 @@ export default function CreateRoom() {
               Starts {eventTime(chosenSchedule.date.toISOString())}. You'll open the doors with "Start now".
             </Text>
           ) : null}
+          <ListGroup>
+            <ListRow
+              icon={Repeat}
+              iconTone="accent"
+              title="Repeat weekly"
+              subtitle={
+                repeatWeekly
+                  ? `When it ends, the next one is set for the same time next week${chosenSchedule.date ? ` (${eventTime(new Date(chosenSchedule.date.getTime() + 7 * 86400000).toISOString())})` : ''}. Great for regulars.`
+                  : 'Make it a weekly thing so your regulars know when to come back.'
+              }
+              toggle={{ value: repeatWeekly, onChange: setRepeatWeekly }}
+            />
+          </ListGroup>
         </FormSection>
 
         {communities.list.length > 0 || communityId ? (

@@ -74,6 +74,21 @@ Restart the app. **Profile → Moderation** appears.
 - [ ] Werewolf (4+ players): night and day phases, voting. A phase moves on automatically after 2 minutes if someone is idle.
 - [ ] Joining by code works.
 
+### Meeting people & staying close (two devices)
+- [ ] Profile → Profile prompts: answer up to 3.
+- [ ] Friend Swipe: both accounts swipe 👋 on each other, see "It's a match", and are friends. Try adding a note on a photo or prompt, which arrives as the first message.
+- [ ] A skip is silent: the other person sees nothing.
+- [ ] Home → Free to talk: set 30 min. The other phone sees you under "Free now".
+- [ ] 👋 Wave from the Hang out button. Waving back within 10 minutes suggests a call.
+- [ ] Chat: hold the mic to record a voice note, play it on the other phone, then delete it.
+- [ ] Hang out sheet: voice call, video call, play a game (the join code is posted in chat), private room.
+- [ ] Incoming call: Decline (the caller only sees "No answer"), Decline & block, Report. In a call, End call for everyone.
+- [ ] Squads: create a squad with your friend, chat, start a squad hangout, set squad night.
+- [ ] Slow Letters: both accounts tap "Find a pen pal" and write letters. In development, delays are 60× shorter (minutes instead of hours).
+- [ ] Games: start a game, tap **Start call**, see the face bubbles; mute someone just for you; at the end, Add friend / Send a vibe.
+- [ ] Rooms: create a room with **Repeat weekly**, end it, and see next week's room scheduled.
+- [ ] Safety centre → Your rights & controls.
+
 ### Gems, ads, Plus
 - [ ] Quests and streak give gems.
 - [ ] Shop → **Watch for +20 gems** shows a Google *test* ad and adds gems. There's a daily cap.

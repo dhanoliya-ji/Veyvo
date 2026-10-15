@@ -39,8 +39,14 @@ Clients drop events whose `id` they've already seen (duplicates can occur after 
 | `friendship.removed` | user | `{user_id}` | The other person |
 | `block.updated` | user | `{user_id, blocked}` | The blocker only |
 | `notification.created` | user | notification summary (never message text) | Recipient |
-| `call.incoming` | user | `{room_id, from}` | The friend being called |
-| `call.declined` | user | `{room_id, user_id}` | The caller |
+| `call.incoming` | user | `{room_id, from, format}` (`voice` or `video`) | The friend being called |
+| `call.ended` | user | `{room_id, reason}`. A decline arrives as `reason: "no_answer"`, never as a rejection. | The other call members |
+| `wave.received` | user | `{from}` | The friend who was waved at |
+| `wave.matched` | user | `{user, suggestion: "call"}` | Both friends, when they wave at each other within 10 minutes |
+| `friend.free` / `me.free` | user | `{user_id, free_until}` | Friends (not blocked) / yourself |
+| `discover.match` | user | `{friend, conversation_id}` | Both people after a mutual Friend Swipe |
+| `squad.message` / `squad.read` / `squad.updated` / `squad.hangout` | user | squad message / read marker / changed squad / live squad room | Squad members (blocked people's messages are filtered out) |
+| `pen_pal.updated` | user | `{pen_pal_id}` | Both pen pals |
 | `icebreaker.matched` / `icebreaker.updated` | user | `{session_id}` | Both participants |
 | `room.removed` | user | `{room_id, banned}` | The removed person |
 | `account.status` | user | `{status, until?}` | The affected account |

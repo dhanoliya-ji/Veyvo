@@ -156,6 +156,9 @@ export type VoiceControls = {
   camerasOn: Set<string>;
   /** Show or hide someone's video. Hidden videos aren't downloaded at all. */
   setVideoVisible: (userId: string, visible: boolean) => void;
+  /** userIds you muted for yourself only. Their audio isn't downloaded; nobody else is affected. */
+  audioMuted: Set<string>;
+  setAudioMuted: (userId: string, muted: boolean) => void;
   error: string | null;
   retry: () => void;
   openSettings: () => void;
@@ -180,6 +183,8 @@ export function useVoice(
   const [videos, setVideos] = useState<Record<string, CameraRef>>({});
   const [camerasOn, setCamerasOn] = useState<Set<string>>(new Set());
   const visibleRef = useRef<Set<string>>(new Set());
+  const mutedAudioRef = useRef<Set<string>>(new Set());
+  const [audioMuted, setAudioMutedState] = useState<Set<string>>(new Set());
   const facingRef = useRef<'user' | 'environment'>('user');
   const [state, setState] = useState<VoiceState>('disconnected');
   const [micOn, setMicOn] = useState(false);
@@ -226,6 +231,12 @@ export function useVoice(
         on.add(room.localParticipant.identity);
       }
       room.remoteParticipants.forEach((p: RemoteParticipant) => {
+        // "Mute for me": stop downloading this person's mic (local only).
+        const mic = p.getTrackPublication(lk.Track.Source.Microphone) as RemoteTrackPublication | undefined;
+        if (mic) {
+          const wantAudio = !mutedAudioRef.current.has(p.identity);
+          if (mic.isSubscribed !== wantAudio) mic.setSubscribed(wantAudio);
+        }
         const pub = p.getTrackPublication(lk.Track.Source.Camera) as RemoteTrackPublication | undefined;
         if (!pub || pub.isMuted) return;
         on.add(p.identity);
@@ -462,6 +473,13 @@ export function useVoice(
     syncVideosRef.current();
   }, []);
 
+  const setAudioMuted = useCallback((userId: string, muted: boolean) => {
+    if (muted) mutedAudioRef.current.add(userId);
+    else mutedAudioRef.current.delete(userId);
+    setAudioMutedState(new Set(mutedAudioRef.current));
+    syncVideosRef.current();
+  }, []);
+
   const retry = useCallback(() => {
     setMicBlocked(false);
     setAttempt((a) => a + 1);
@@ -471,5 +489,5 @@ export function useVoice(
     Linking.openSettings().catch(() => undefined);
   }, []);
 
-  return { state, micOn, micBusy, micBlocked, toggleMic, speaking, camOn, camBusy, camBlocked, toggleCamera, flipCamera, videos, camerasOn, setVideoVisible, error, retry, openSettings };
+  return { state, micOn, micBusy, micBlocked, toggleMic, speaking, camOn, camBusy, camBlocked, toggleCamera, flipCamera, videos, camerasOn, setVideoVisible, audioMuted, setAudioMuted, error, retry, openSettings };
 }

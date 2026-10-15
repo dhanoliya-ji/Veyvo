@@ -10,6 +10,8 @@ export const KUDOS_FALLBACK: Record<string, string> = {
   funny: 'Funny',
   kind: 'Kind',
   great_listener: 'Great listener',
+  good_energy: 'Good energy',
+  great_player: 'Great player',
   smart: 'Big brain',
   creative: 'Creative',
   great_host: 'Great host',
@@ -18,10 +20,12 @@ export const KUDOS_FALLBACK: Record<string, string> = {
 export const KUDOS_EMOJI: Record<string, string> = {
   funny: '😂',
   kind: '💛',
-  great_listener: '👂',
+  great_listener: '🎧',
+  good_energy: '✨',
+  great_player: '🏆',
   smart: '🧠',
   creative: '🎨',
-  great_host: '🎉',
+  great_host: '🎤',
 };
 
 export function useKudosLabels(): Record<string, string> {

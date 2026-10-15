@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { BookOpen, DoorOpen, EyeOff, Flag, HeartHandshake, LifeBuoy, Lock, MicOff, Shield, ShieldCheck, UserX, type LucideProps } from 'lucide-react-native';
+import { BookOpen, DoorOpen, EyeOff, Flag, HeartHandshake, LifeBuoy, Lock, MicOff, Scale, Shield, ShieldCheck, UserX, type LucideProps } from 'lucide-react-native';
 
 import { useMyReports } from '@/api/hooks';
 import { Badge, Card, Header, ListGroup, ListRow, Screen, SectionHeader, Text } from '@/components/ui';
@@ -12,7 +12,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { radius, space } from '@/theme/tokens';
 
 const TOOLS: { icon: ComponentType<LucideProps>; title: string; body: string }[] = [
-  { icon: DoorOpen, title: 'Leave instantly', body: 'The Leave button is always visible in every room and game.' },
+  { icon: DoorOpen, title: 'Leave or hang up instantly', body: 'Leave any room, game, call or squad in one tap. You can end a call for everyone.' },
   { icon: UserX, title: 'Block anyone', body: 'From a profile, chat or room. They can no longer find or contact you, and aren’t notified.' },
   { icon: Flag, title: 'Report', body: 'Every profile, message, room and community has Report. Reports are confidential.' },
   { icon: MicOff, title: 'Host controls', body: 'Hosts can mute, remove or ban people from their rooms.' },
@@ -65,6 +65,7 @@ export default function SafetyCentre() {
         </View>
 
         <ListGroup title="Manage">
+          <ListRow icon={Scale} iconTone="success" title="Your rights & controls" subtitle="Everything you can do, everywhere in Veyvo" onPress={() => router.push('/rights')} />
           <ListRow icon={Shield} iconTone="success" title="Privacy settings" onPress={() => router.push('/settings/privacy')} />
           <ListRow icon={UserX} iconTone="success" title="Blocked accounts" onPress={() => router.push('/settings/blocked')} />
         </ListGroup>

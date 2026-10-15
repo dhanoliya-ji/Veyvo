@@ -1,5 +1,5 @@
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BadgeCheck,
@@ -7,7 +7,9 @@ import {
   Gavel,
   Gem,
   Heart,
+  Mail,
   MessageCircle,
+  MessageSquareQuote,
   Camera,
   Pencil,
   Settings,
@@ -16,6 +18,7 @@ import {
   Sparkles,
   Trophy,
   Users,
+  UsersRound,
 } from 'lucide-react-native';
 
 import { useCommunities, useFriends, useMe, useProfile } from '@/api/hooks';
@@ -24,17 +27,9 @@ import { CommunityCard } from '@/components/cards';
 import { useTabBarInset } from '@/components/TabBar';
 import { Badge, Button, Card, Chip, ErrorState, IconButton, ListGroup, ListRow, PressableScale, ProgressBar, SectionHeader, Skeleton, Text } from '@/components/ui';
 import { VIBE_LABELS } from '@/lib/format';
+import { KUDOS_EMOJI, useKudosLabels } from '@/api/social-extra';
 import { useTheme } from '@/theme/ThemeProvider';
 import { radius, screenPadding, space } from '@/theme/tokens';
-
-const KUDOS_LABELS: Record<string, string> = {
-  funny: 'Funny',
-  kind: 'Kind',
-  great_listener: 'Great listener',
-  smart: 'Big brain',
-  creative: 'Creative',
-  great_host: 'Great host',
-};
 
 function Stat({ value, label, onPress }: { value: string | number; label: string; onPress?: () => void }) {
   return (
@@ -52,6 +47,7 @@ export default function Profile() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarInset();
   const me = useMe();
+  const kudosLabels = useKudosLabels();
   const friends = useFriends();
   const mine = useProfile(me.data?.id ?? '');
   const communities = useCommunities({ mine: true });
@@ -153,20 +149,20 @@ export default function Profile() {
 
         {/* Kudos */}
         <View style={{ marginTop: space.xxl }}>
-          <SectionHeader title="Kudos" subtitle="What people appreciate about hanging out with you" />
+          <SectionHeader title="Vibes" subtitle="What people appreciate about hanging out with you" />
           {kudos.length ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
               {kudos.map(([tag, n]) => (
                 <View key={tag} style={[styles.kudo, { backgroundColor: colors.accentSoft }]}>
                   <Heart size={14} color={colors.accent} />
                   <Text variant="label" tone="accent">
-                    {KUDOS_LABELS[tag] ?? tag} · {n}
+                    {KUDOS_EMOJI[tag] ? `${KUDOS_EMOJI[tag]} ` : ''}{kudosLabels[tag] ?? tag} · {n}
                   </Text>
                 </View>
               ))}
             </View>
           ) : (
-            <Text tone="muted">Join hangouts and games — people can send you kudos after hanging out.</Text>
+            <Text tone="muted">Join hangouts and games — people can send you vibes after hanging out.</Text>
           )}
         </View>
 
@@ -188,6 +184,10 @@ export default function Profile() {
           <ListGroup>
             <ListRow icon={Users} iconTone="primary" title="Friends" onPress={() => router.push('/friends')} />
             <ListRow icon={MessageCircle} iconTone="primary" title="Messages" onPress={() => router.push('/messages')} />
+            <ListRow icon={Heart} iconTone="accent" title="Friend Swipe" subtitle="Meet people who share your vibe" onPress={() => router.push('/discover' as Href)} />
+            <ListRow icon={UsersRound} iconTone="primary" title="Squads" subtitle="Your small friend groups" onPress={() => router.push('/squads' as Href)} />
+            <ListRow icon={Mail} iconTone="accent" title="Slow Letters" subtitle="Pen pals around the world" onPress={() => router.push('/letters' as Href)} />
+            <ListRow icon={MessageSquareQuote} iconTone="primary" title="Profile prompts" subtitle="Give people something to reply to" onPress={() => router.push('/prompts' as Href)} />
             <ListRow icon={Trophy} iconTone="warning" title="Quests & streak" onPress={() => router.push('/quests')} />
             <ListRow icon={Sparkles} iconTone="accent" title="Moments" subtitle="Your highlights, ready to share" onPress={() => router.push('/moments')} />
             <ListRow icon={BadgeCheck} iconTone="primary" title={m?.verified ? 'Verified' : 'Get verified'} subtitle="Selfie verification" onPress={() => router.push('/verification')} />

@@ -170,6 +170,7 @@ async def list_friends(db: AsyncSession, user: User, q: str | None = None) -> li
     other_ids = [f.user_high_id if f.user_low_id == user.id else f.user_low_id for f in rows]
     users = {u.id: u for u in await db.scalars(select(User).where(User.id.in_(other_ids)))} if other_ids else {}
     online = await online_set()
+    now = utcnow()
     out = []
     for f, oid in zip(rows, other_ids, strict=False):
         other = users.get(oid)
@@ -187,6 +188,7 @@ async def list_friends(db: AsyncSession, user: User, q: str | None = None) -> li
                 friendship_progress=progress,
                 online=(str(oid) in online) if show else None,
                 since=f.created_at,
+                free_now=bool(other.profile and other.profile.free_until and other.profile.free_until > now),
             )
         )
     out.sort(key=lambda x: (not bool(x.online), x.display_name.lower()))
@@ -269,6 +271,9 @@ async def block(db: AsyncSession, user: User, target_id: uuid.UUID) -> None:
     db.add(Block(blocker_id=user.id, blocked_id=target_id))
     low, high = ordered_pair(user.id, target_id)
     await db.execute(delete(Friendship).where(Friendship.user_low_id == low, Friendship.user_high_id == high))
+    from app.services.letters import end_pen_pals_between
+
+    await end_pen_pals_between(db, user.id, target_id)
     await db.execute(
         update(FriendRequest)
         .where(FriendRequest.pair_key == pair_key(user.id, target_id), FriendRequest.status == "pending")

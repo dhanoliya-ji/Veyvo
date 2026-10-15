@@ -27,6 +27,7 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 class CallIn(ApiModel):
     user_id: uuid.UUID
+    format: Literal["voice", "video"] = "video"
 
 
 @router.post("/calls", response_model=RoomDetail, status_code=201)
@@ -34,7 +35,7 @@ async def start_call(body: CallIn, user: ActiveUser, db: DB):
     from app.services import calls
 
     await hit("call", str(user.id))
-    return await calls.start_call(db, user, body.user_id)
+    return await calls.start_call(db, user, body.user_id, body.format)
 
 
 @router.post("/calls/{room_id}/decline", response_model=Ok)
@@ -42,6 +43,14 @@ async def decline_call(room_id: uuid.UUID, user: ActiveUser, db: DB):
     from app.services import calls
 
     await calls.decline_call(db, user, room_id)
+    return Ok()
+
+
+@router.post("/calls/{room_id}/end", response_model=Ok)
+async def end_call(room_id: uuid.UUID, user: ActiveUser, db: DB):
+    from app.services import calls
+
+    await calls.end_call(db, user, room_id)
     return Ok()
 
 
