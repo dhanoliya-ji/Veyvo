@@ -140,7 +140,7 @@ Everything is server-verified. The app never grants gems or Plus by itself.
 
 ### Rewarded ads (AdMob)
 1. Create an AdMob account → add an Android app (`app.veyvo`) → create a **Rewarded** ad unit.
-2. In `mobile/app.json`, replace the **test** `androidAppId` under the `react-native-google-mobile-ads` plugin with your real AdMob App ID.
+2. In `mobile/app.json`, replace the **test** App ID with your real AdMob App ID in **both** places: `androidAppId` under the `react-native-google-mobile-ads` plugin, and `android_app_id` in the top-level `react-native-google-mobile-ads` section. The library's Android build reads that top-level section and fails without it.
 3. Set `EXPO_PUBLIC_ADMOB_REWARDED_ID=<your rewarded unit id>` in the production build env (`eas.json`). Without it, Google's test ad unit is used.
 4. In the AdMob ad unit settings, turn on **Server-side verification** with the callback URL `https://<api-host>/api/v1/ads/ssv`.
 5. Backend env: `ADMOB_ENABLED=true` (optionally `AD_REWARD_GEMS`, `AD_DAILY_REWARD_CAP`).
