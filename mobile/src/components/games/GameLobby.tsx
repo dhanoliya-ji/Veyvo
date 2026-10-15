@@ -13,6 +13,7 @@ import { toast } from '@/stores/toast';
 import { useTheme } from '@/theme/ThemeProvider';
 import { space } from '@/theme/tokens';
 import type { GameCtx } from './GameParts';
+import { GameOptions } from './GameOptions';
 import { GamePreview } from './GamePreview';
 
 export async function shareGameCode(name: string, code: string) {
@@ -106,6 +107,8 @@ export function GameLobby({ ctx, onJoin, joining, onLeave }: { ctx: GameCtx; onJ
           ))}
         </View>
       </View>
+
+      <GameOptions game={game} isHost={isHost} />
 
       <Card style={{ gap: space.sm, backgroundColor: colors.surfaceAlt }}>
         <Text variant="bodyStrong">How to play {meta.name}</Text>

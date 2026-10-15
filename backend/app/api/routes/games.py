@@ -73,6 +73,11 @@ async def start(game_id: uuid.UUID, user: ActiveUser, db: DB):
     return await games.start_game(db, user, game_id)
 
 
+@router.patch("/{game_id}/settings", response_model=GameView)
+async def settings(game_id: uuid.UUID, body: dict, user: ActiveUser, db: DB):
+    return await games.update_settings(db, user, game_id, body.get("options") or {})
+
+
 @router.post("/{game_id}/action", response_model=GameView)
 async def action(game_id: uuid.UUID, body: GameActionIn, user: ActiveUser, db: DB):
     await hit("game_action", str(user.id))

@@ -123,3 +123,15 @@ async def test_werewolf_idle_host_auto_advances(client, monkeypatch):
     monkeypatch.setattr(games_service, "WEREWOLF_PHASE_SECONDS", -1)  # deadline already passed
     v2 = (await client.get(f"/games/{game['id']}", headers=players[1]["headers"])).json()
     assert v2["board"]["phase"] != phase or v2["status"] == "finished"
+
+
+async def test_host_sets_options_in_lobby(client):
+    host, other = await make_user(client), await make_user(client)
+    game = await _lobby(client, host, [other], "truth_or_dare")
+    url = f"/games/{game['id']}/settings"
+    assert (await client.patch(url, json={"options": {"rounds": 2}}, headers=other["headers"])).status_code == 403
+    assert (await client.patch(url, json={"options": {"rounds": 99}}, headers=host["headers"])).status_code == 422
+    r = await client.patch(url, json={"options": {"rounds": 1, "packs": ["funny"], "hack": True}}, headers=host["headers"])
+    assert r.status_code == 200 and r.json()["settings"] == {"rounds": 1, "packs": ["funny"]}
+    await client.post(f"/games/{game['id']}/start", headers=host["headers"])
+    assert (await client.patch(url, json={"options": {"rounds": 2}}, headers=host["headers"])).status_code == 409

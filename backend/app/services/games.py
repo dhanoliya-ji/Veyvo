@@ -76,7 +76,7 @@ async def create_game(db: AsyncSession, user: User, game_type: str, room_id: uui
         raise AppError("Unknown game.", code="unknown_game", status_code=422)
     if room_id:
         await _check_room(db, user, room_id)
-    clean = {k: v for k, v in (options or {}).items() if k in ALLOWED_OPTIONS.get(game_type, set())}
+    clean = _clean_options(game_type, options)
     for _ in range(5):
         code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(6))
         if not await db.scalar(select(GameSession.id).where(GameSession.code == code)):
@@ -172,6 +172,36 @@ async def start_game(db: AsyncSession, user: User, session_id: uuid.UUID) -> Gam
         options["host"] = str(game.host_id)
     game.state = engine.new_state([str(p.user_id) for p in players], _rng, options or None)
     game.status, game.started_at = "active", utcnow()
+    game.version += 1
+    await db.commit()
+    await _notify_changed(game)
+    return await view(db, user, game.id)
+
+
+def _clean_options(game_type: str, options: dict) -> dict:
+    clean = {k: v for k, v in (options or {}).items() if k in ALLOWED_OPTIONS.get(game_type, set())}
+    if game_type == "crazy_eights":
+        clean = {k: bool(v) for k, v in clean.items()}
+    if game_type == "truth_or_dare":
+        if "rounds" in clean:
+            if not isinstance(clean["rounds"], int) or not 1 <= clean["rounds"] <= 10:
+                raise AppError("Rounds must be between 1 and 10.", code="invalid_options", status_code=422)
+        if "packs" in clean:
+            packs = clean["packs"]
+            if not isinstance(packs, list) or not packs or any(p not in ("classic", "deep_talk", "funny") for p in packs):
+                raise AppError("Pick at least one question pack.", code="invalid_options", status_code=422)
+        if "max_skips" in clean and (not isinstance(clean["max_skips"], int) or not 0 <= clean["max_skips"] <= 5):
+            raise AppError("Skips must be between 0 and 5.", code="invalid_options", status_code=422)
+    return clean
+
+
+async def update_settings(db: AsyncSession, user: User, session_id: uuid.UUID, options: dict) -> GameView:
+    game = await _locked(db, session_id)
+    if game.host_id != user.id:
+        raise Forbidden("Only the host can change the game settings.", code="not_game_host")
+    if game.status != "lobby":
+        raise Conflict("Settings can only change before the game starts.", code="game_started")
+    game.settings = {**(game.settings or {}), **_clean_options(game.game_type, options)}
     game.version += 1
     await db.commit()
     await _notify_changed(game)
