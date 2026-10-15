@@ -185,6 +185,16 @@ async def purge_expired(db: AsyncSession) -> dict:
     counts["sessions"] = (
         await db.execute(delete(AuthSession).where(or_(AuthSession.expires_at < now, AuthSession.revoked_at < now - SESSION_RETENTION)))
     ).rowcount
+    # Evidence images (e.g. automatic live-video snapshots) are deleted from storage with the evidence.
+    from app.core.storage import get_storage
+
+    old = await db.scalars(
+        select(Report).where(Report.resolved_at.is_not(None), Report.resolved_at < now - RESOLVED_REPORT_EVIDENCE_RETENTION)
+    )
+    for r in old:
+        key = (r.evidence or {}).get("snapshot_key")
+        if key:
+            get_storage().delete(key)
     counts["report_evidence"] = (
         await db.execute(
             update(Report)

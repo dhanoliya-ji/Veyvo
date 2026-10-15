@@ -54,10 +54,15 @@ async def lifespan(app: FastAPI):
         await sync_interests()
     await hub.start()
     task = asyncio.create_task(_retention_loop()) if settings.app_env != "test" else None
+    from app.services import livemod
+
+    livemod_task = asyncio.create_task(livemod.run_forever()) if settings.app_env != "test" else None
     logger.info("startup", extra={"env": settings.app_env, "media": settings.media_configured, "redis": bool(settings.redis_url)})
     yield
     if task:
         task.cancel()
+    if livemod_task:
+        livemod_task.cancel()
     hub.stop()
     await get_store().close()
 

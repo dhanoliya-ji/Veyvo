@@ -268,7 +268,16 @@ function LiveStage({ room, meId, onRejoin, onEnded, onRemoved, onLeave }: StageP
       realtime.on('room.participant_updated', (e) => {
         if (!ours(e)) return;
         if (e.data.user_id === meRef.current && (e.data.action === 'remove' || e.data.action === 'ban')) handlers.current.onRemoved();
-        else refetch();
+        else {
+          if (e.data.user_id === meRef.current && e.data.action === 'camera_off') {
+            toast.show({
+              title: 'Your camera was turned off',
+              message: e.data.automatic ? 'An automatic safety check flagged your video. A moderator will review it.' : 'The host turned your camera off.',
+              tone: 'warning',
+            });
+          }
+          refetch();
+        }
       }),
       realtime.on('room.message', (e) => {
         if (!ours(e)) return;

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { useModDecision, useModReport } from '@/api/hooks';
@@ -55,14 +56,20 @@ export default function ReportReview() {
               Reported content (snapshot)
             </Text>
             {Object.keys(r.evidence).length ? (
-              Object.entries(r.evidence).map(([k, v]) => (
-                <View key={k} style={{ gap: 2 }}>
-                  <Text variant="caption" tone="faint">
-                    {k.replace('_', ' ')}
-                  </Text>
-                  <Text selectable>{String(v ?? '—')}</Text>
-                </View>
-              ))
+              Object.entries(r.evidence)
+                .filter(([k]) => k !== 'snapshot_key' && k !== 'scores')
+                .map(([k, v]) =>
+                  k.endsWith('_url') && typeof v === 'string' ? (
+                    <Image key={k} source={{ uri: v }} style={{ width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md }} contentFit="contain" accessibilityLabel="Evidence image" />
+                  ) : (
+                    <View key={k} style={{ gap: 2 }}>
+                      <Text variant="caption" tone="faint">
+                        {k.replace('_', ' ')}
+                      </Text>
+                      <Text selectable>{String(v ?? '—')}</Text>
+                    </View>
+                  ),
+                )
             ) : (
               <Text tone="muted">No snapshot (cleared by retention policy).</Text>
             )}

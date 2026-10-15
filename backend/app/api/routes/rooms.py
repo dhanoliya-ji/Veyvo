@@ -1,7 +1,7 @@
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from app.api.dependencies import DB, ActiveUser
 from app.schemas.common import ApiModel, Ok
@@ -42,6 +42,29 @@ async def decline_call(room_id: uuid.UUID, user: ActiveUser, db: DB):
     from app.services import calls
 
     await calls.decline_call(db, user, room_id)
+    return Ok()
+
+
+@router.post("/livekit-webhook", response_model=Ok, include_in_schema=False)
+async def livekit_webhook(request: Request, db: DB):
+    """LiveKit webhook (signed with our API secret). Used for live video safety checks."""
+    from livekit import api as lk
+
+    from app.core.config import get_settings
+    from app.core.exceptions import Forbidden
+    from app.services import livemod
+
+    s = get_settings()
+    if not s.media_configured:
+        raise Forbidden("Not configured.", code="forbidden")
+    body = (await request.body()).decode()
+    try:
+        event = lk.WebhookReceiver(lk.TokenVerifier(s.livekit_api_key, s.livekit_api_secret)).receive(
+            body, request.headers.get("authorization", "")
+        )
+    except Exception:
+        raise Forbidden("Bad signature.", code="forbidden")
+    await livemod.handle_webhook_event(db, event)
     return Ok()
 
 

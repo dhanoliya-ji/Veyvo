@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     moderation_provider: Literal["none", "sightengine"] = "none"
     sightengine_api_user: str = ""
     sightengine_api_secret: str = ""
+    # Snapshot-based safety checks for cameras in public video rooms (needs LiveKit + S3 + a provider).
+    live_video_moderation: bool = False
+    live_video_snapshot_seconds: int = 10
 
     max_room_capacity: int = 50
     plus_room_capacity: int = 100

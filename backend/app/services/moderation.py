@@ -191,10 +191,15 @@ async def report_detail(db: AsyncSession, report_id: uuid.UUID) -> ReportDetail:
         )
         target = await db.get(User, report.target_user_id)
         target_status = target.status if target else None
+    evidence = dict(report.evidence or {})
+    if evidence.get("snapshot_key"):
+        from app.core.storage import get_storage
+
+        evidence["snapshot_url"] = get_storage().url(evidence["snapshot_key"])
     return ReportDetail(
         **ReportOut.model_validate(report).model_dump(),
         description=report.description,
-        evidence=report.evidence,
+        evidence=evidence,
         reporter=people.get(report.reporter_id),
         target_user=people.get(report.target_user_id),
         target_user_status=target_status,
