@@ -16,3 +16,4 @@ livekit-api>=1.0
 cryptography>=43
 pillow>=11
 boto3>=1.35
+sentry-sdk>=2

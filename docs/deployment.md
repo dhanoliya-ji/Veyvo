@@ -115,7 +115,7 @@ npx eas-cli@latest build --profile production --platform android    # .aab for P
 5. **Child safety standards** (required for social apps): published at `/legal/child-safety`, with in-app reporting including "User may be under 18" ✔ and a named contact. Fill in `safety@yourdomain`.
 6. **Account deletion:** in the app ✔, plus a web URL for the Play listing: `https://<api-host>/account/delete` ✔.
 7. **Privacy policy URL:** `https://<api-host>/legal/privacy`. Have counsel review it and add your company details.
-8. **Data safety form.** Declare:
+8. **Data safety form.** The full answer table is in [play-store.md](play-store.md). In short, declare:
    - Collected: email (account management); user IDs; **photos** (profile photos, the verification selfie, which is deleted after review, and live-video frames from public rooms, which are deleted after moderation unless flagged); in-app messages; other user-generated content (profile, posts); app interactions (games); purchase history (gem packs, Plus).
    - Advertising: AdMob may collect the device advertising ID. Declare this, and show the UMP consent form.
    - Not collected: location (photo GPS is stripped), contacts, voice or video recordings.

@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     google_rtdn_token: str = ""
     max_message_length: int = 2000
 
+    # Error reporting (sentry.io or a self-hosted Sentry). Empty = off. Never sends personal data.
+    sentry_dsn: str = ""
+    # Share of requests traced for performance monitoring (0 = none, 1 = all).
+    sentry_traces_sample_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
     @field_validator("database_url", mode="before")
     @classmethod
     def _async_driver(cls, value: object) -> object:

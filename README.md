@@ -156,4 +156,6 @@ Without LiveKit, voice and video rooms show a clear "voice isn't set up" state a
 - [docs/realtime.md](docs/realtime.md): WebSocket protocol and event contract
 - [docs/deployment.md](docs/deployment.md): hosting on Render, external services, Android builds, Play Store checklist
 - [docs/testing.md](docs/testing.md): step-by-step testing on a real phone
+- [docs/go-live.md](docs/go-live.md): putting Veyvo online, step by step (R2, Sightengine, Resend, LiveKit, Sentry, Render)
+- [docs/play-store.md](docs/play-store.md): Play Console listing text, data safety answers, content rating and release path
 - [docs/roadmap.md](docs/roadmap.md): what's next

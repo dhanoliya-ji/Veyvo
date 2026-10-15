@@ -16,6 +16,7 @@ import {
   Camera,
   Shield,
   ShieldCheck,
+  Sparkles,
   UserRound,
   UserX,
 } from 'lucide-react-native';
@@ -82,6 +83,7 @@ export default function SettingsHome() {
           <ListRow icon={BookOpen} title="Community Guidelines" onPress={() => Linking.openURL(LEGAL_URLS.guidelines)} />
           <ListRow icon={FileText} title="Terms of Service" onPress={() => Linking.openURL(LEGAL_URLS.terms)} />
           <ListRow icon={FileText} title="Privacy Policy" onPress={() => Linking.openURL(LEGAL_URLS.privacy)} />
+          <ListRow icon={Sparkles} title="Replay the welcome tour" subtitle="A quick look at what you can do on Veyvo" onPress={() => router.push({ pathname: '/tour', params: { replay: '1' } })} />
           <ListRow icon={HelpCircle} title="Help & support" onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)} />
           <ListRow icon={MessageSquareWarning} title="Report a problem" onPress={reportProblem} />
         </ListGroup>

@@ -37,6 +37,7 @@ LIMITS: dict[str, tuple[int, int]] = {
     "call": (30, 3600),
     "verification": (5, 86400),
     "ad_reward": (20, 3600),
+    "client_error": (30, 3600),
 }
 
 

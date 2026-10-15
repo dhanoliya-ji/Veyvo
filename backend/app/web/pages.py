@@ -73,6 +73,7 @@ async def privacy():
 <li><strong>"Free to talk" status (optional):</strong> when you set it, friends can see you're free until the time you chose.</li>
 <li><strong>Safety records:</strong> reports you file or that are filed about content, and records of moderation actions.</li>
 <li><strong>Device:</strong> a push notification token if you allow notifications, and the platform (Android/iOS) of signed-in devices.</li>
+<li><strong>Crash and error reports:</strong> when the app crashes or hits an error, it sends us an anonymous technical report: the error message and code location, app version, device platform and OS version, which screen you were on, and a random install ID that is reset when you sign out. Reports never include your name, email, account ID, messages or anything you've written.</li>
 </ul>
 <h2>What we don't collect</h2>
 <ul><li>No real name, phone number, contacts, location or date of birth. Photo location data is stripped on upload.</li>
@@ -103,7 +104,7 @@ async def privacy():
 <li><strong>Delete your account:</strong> in the app (Settings → Account → Delete account) or on the web at <a href="/account/delete">/account/delete</a>. Deletion is permanent and immediate: your profile, messages you sent, chat, posts, friendships and all other personal data are erased. Reports you filed are kept without your identity so open safety reviews can finish.</li>
 <li>You can also contact us at <a href="mailto:{CONTACT}">{CONTACT}</a> to access, correct or delete your data.</li></ul>
 <h2>Security</h2><p>Data is encrypted in transit (HTTPS/TLS). Passwords are hashed with Argon2id, sign-in tokens are short-lived and rotate, and staff access to moderation tools is role-restricted and audited.</p>
-<h2>Service providers</h2><p>We use infrastructure providers to host the service, send email codes and deliver push notifications, a real-time media provider to relay live voice and video, private cloud storage for photos, and (where enabled) an image-safety service that checks uploaded photos and still images from live video in hangouts. Payments are processed by Google Play and ads by Google AdMob, under their own privacy policies. They process data only on our instructions.</p>
+<h2>Service providers</h2><p>We use infrastructure providers to host the service, send email codes and deliver push notifications, a real-time media provider to relay live voice and video, private cloud storage for photos, and (where enabled) an image-safety service that checks uploaded photos and still images from live video in hangouts. If enabled, an error-tracking provider (Sentry) processes crash reports and server errors without personal data. Payments are processed by Google Play and ads by Google AdMob, under their own privacy policies. They process data only on our instructions.</p>
 <h2>Adults only</h2><p>Veyvo is for people aged 18 and over. If we learn an account belongs to someone younger, we delete it.</p>
 <h2>Changes</h2><p>We'll notify you in the app before material changes take effect.</p>
 <p class="muted">Contact: <a href="mailto:{CONTACT}">{CONTACT}</a></p>""",

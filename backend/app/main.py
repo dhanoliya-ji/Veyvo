@@ -7,6 +7,7 @@ from sqlalchemy import select, text
 
 from app.api.routes import (
     auth,
+    client_errors,
     communities,
     connect,
     conversations,
@@ -28,6 +29,7 @@ from app.core import database
 from app.core.config import get_settings
 from app.core.exceptions import install_exception_handlers
 from app.core.logging import configure_logging, logger
+from app.core.sentry import init_sentry
 from app.core.store import get_store
 from app.models import Interest
 from app.services.account import purge_expired
@@ -91,6 +93,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    init_sentry()  # no-op unless SENTRY_DSN is set
     app = FastAPI(
         title="Veyvo API",
         version="1.0.0",
@@ -135,7 +138,7 @@ def create_app() -> FastAPI:
 
     for module in (
         auth, me, users, conversations, rooms, communities, games, engagement, moments, monetization, photos, safety,
-        discover, connect, squads, letters,
+        discover, connect, squads, letters, client_errors,
     ):  # fmt: skip
         app.include_router(module.router, prefix=API_PREFIX)
     app.include_router(ws_routes.router)

@@ -1,6 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 
+import { resetInstallId } from '@/lib/crash';
+
 const ACCESS_KEY = 'veyvo.access';
 const REFRESH_KEY = 'veyvo.refresh';
 
@@ -49,6 +51,8 @@ export const useSession = create<SessionState>((set) => ({
 
   signOutLocal: async (reason = 'user') => {
     await Promise.all([SecureStore.deleteItemAsync(ACCESS_KEY), SecureStore.deleteItemAsync(REFRESH_KEY)]).catch(() => undefined);
+    // A fresh anonymous crash-report id after every sign-out, so reports can't be linked across accounts.
+    await resetInstallId();
     set({ accessToken: null, refreshToken: null, status: 'signedOut', signOutReason: reason });
   },
 

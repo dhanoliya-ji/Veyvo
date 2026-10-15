@@ -25,6 +25,7 @@ Veyvo's rule: **collect the minimum, default to private, enforce on the server.*
 | Slow Letters | Pen pals | `pen_pals`, `letters` | Hidden from both when the connection ends; deleted with the account |
 | UTC offset (pen pals only) | Pairing across time zones and letter delay | `pen_pal_waiting`, `pen_pals` | Only while looking or connected; cleared when the connection ends. Never shown to anyone |
 | Waves 👋 | Friend nudges | Redis only, TTL 10 minutes | Ephemeral |
+| Crash/error reports (message, scrubbed stack, app version, OS, screen pattern, random install id) | Stability | Server logs; Sentry if `SENTRY_DSN` is set | Log/Sentry retention. No account link; the install id resets on sign-out |
 | Hangout chat | Rooms | `room_messages` | **30 days**, then purged automatically |
 | Community posts | Communities | `community_posts` | Until removed or account deletion |
 | Game results, gems ledger, quests, kudos, daily answers | Features | respective tables | Until deletion |
